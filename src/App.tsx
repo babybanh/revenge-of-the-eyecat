@@ -4,7 +4,7 @@ import './App.css'
 import { defaultPacRescueLevelMaps, defaultPacRescueSettings } from './game/pacrescue/defaults'
 import { capMapTextCounts, mapCounts, parseMapText, rebalanceMapText, sanitizeSettings } from './game/pacrescue/map'
 import { createDelayedKeyState } from './game/pacrescue/objective'
-import { hasNextLevel, nextLevelIndex } from './game/pacrescue/progression'
+import { nextLevelIndex } from './game/pacrescue/progression'
 import type { MazeFloor, MazeWall, PacRescueSettings, RuntimeSnapshot } from './game/pacrescue/types'
 import { gameConfig } from './game/config/gameConfig'
 import { PacRescueScene, type JoystickInput } from './game/scenes/PacRescueScene'
@@ -96,6 +96,7 @@ export default function App() {
   const [musicEnabled, setMusicEnabled] = useState(true)
   const [musicStarted, setMusicStarted] = useState(false)
   const [audioUnlocked, setAudioUnlocked] = useState(false)
+  const [heartLossId, setHeartLossId] = useState(0)
   const [showCredits, setShowCredits] = useState(false)
   const [showConcept, setShowConcept] = useState(false)
   const [devOpen, setDevOpen] = useState(false)
@@ -103,7 +104,6 @@ export default function App() {
   const activePreset = mapPresets[activeIndex] ?? mapPresets[0]
   const counts = useMemo(() => mapCounts(mapText), [mapText])
   const finished = runtime.status === 'won' || runtime.status === 'gameover'
-  const canAdvance = hasNextLevel(activeIndex, mapPresets.length)
   const shellStyle = useMemo(() => ({
     '--stage-bg': `url("${BACKGROUND_PATH}")`,
     '--spot-joy-x': `${toPercent(gameConfig.layout.joystick.x, gameConfig.layout.designWidth)}`,
@@ -248,7 +248,10 @@ export default function App() {
 
     if (runtime.coinsCollected > previous.coinsCollected) playSfx('coin')
     if (runtime.keysCollected > previous.keysCollected) playSfx('key')
-    if (runtime.lives < previous.lives) playSfx('hit')
+    if (runtime.lives < previous.lives) {
+      playSfx('hit')
+      setHeartLossId((id) => id + 1)
+    }
     if (runtime.status === 'won' && previous.status !== 'won') playSfx('win')
     if (runtime.status === 'gameover' && previous.status !== 'gameover') playSfx('gameover')
     if (started && !levelPaused && shouldShowInstructionNotice(previous, runtime)) {
@@ -271,31 +274,26 @@ export default function App() {
     setStarted(shouldStart)
     setLevelPaused(shouldStart && shouldPause)
     setInstructionVisible(false)
+    setHeartLossId(0)
     setRestartToken((token) => token + 1)
   }, [])
 
-  const restartPack = () => switchPreset(0, true, true)
-
   useEffect(() => {
-    if (runtime.status !== 'won' || !canAdvance) {
+    if (runtime.status !== 'won') {
       return undefined
     }
 
-    const nextIndex = nextLevelIndex(activeIndex, mapPresets.length)
-    if (nextIndex === undefined) {
-      return undefined
-    }
-
-    const timer = window.setTimeout(() => switchPreset(nextIndex, true, true), 850)
+    const nextIndex = nextLevelIndex(activeIndex, mapPresets.length) ?? 0
+    const timer = window.setTimeout(() => switchPreset(nextIndex, true, true), 720)
     return () => window.clearTimeout(timer)
-  }, [activeIndex, canAdvance, runtime.status, switchPreset])
+  }, [activeIndex, runtime.status, switchPreset])
 
   useEffect(() => {
     if (runtime.status !== 'gameover') {
       return undefined
     }
 
-    const timer = window.setTimeout(() => switchPreset(0, true, true), 1100)
+    const timer = window.setTimeout(() => switchPreset(0, true, true), 860)
     return () => window.clearTimeout(timer)
   }, [runtime.status, switchPreset])
 
@@ -353,35 +351,26 @@ export default function App() {
           <button className="title-button" type="button" onClick={() => setShowConcept(true)} title="View original game idea">
             <span>{gameConfig.copy.title}</span>
           </button>
+          <div className="key-strip" aria-label={`${runtime.keysCollected} of ${runtime.requiredKeys} keys collected`}>
+            Keys: {runtime.keysCollected}/{runtime.requiredKeys}
+          </div>
           <div className="heart-strip" aria-label={`${runtime.lives} of ${runtime.maxLives} hearts left`}>
-            {Array.from({ length: runtime.maxLives }, (_, index) => (
-              <span className={index < runtime.lives ? 'full' : ''} key={index}>{HEART}</span>
-            ))}
+            {HEART.repeat(Math.max(0, runtime.lives))}
           </div>
         </header>
 
         <section className="playfield-wrap" style={rectStyle(gameConfig.layout.playfield)}>
           <div className="playfield">
             {started ? <div className="game-host" ref={hostRef} /> : <StartPreview />}
-            {finished ? (
-              <div className={`result-panel result-${runtime.status}`} role="dialog" aria-live="assertive">
-                <h2>{runtime.status === 'won' ? 'Hostage Rescued' : 'Caught'}</h2>
-                <p>{runtime.status === 'won' ? (canAdvance ? `${activePreset.name} cleared. Preparing the next rescue.` : 'All current levels are clear.') : 'No hearts left. Returning to Level 1.'}</p>
-                {runtime.status === 'won' && !canAdvance ? (
-                  <div className="result-actions">
-                    <button type="button" onClick={restartPack}>Try Again</button>
-                  </div>
-                ) : null}
-              </div>
-            ) : null}
+            {heartLossId > 0 ? <div className="heart-loss-popup" key={heartLossId} aria-hidden="true">-1 Heart</div> : null}
           </div>
         </section>
 
         <footer className="bottom-controls" style={rectStyle(gameConfig.layout.bottomControls)} aria-hidden="true" />
         {started && levelPaused ? (
           <div className="level-ready-prompt" style={centeredTextStyle(gameConfig.layout.eventPrompt)}>
-            <strong>Use the joystick or arrow keys to move Eyecat.</strong>
-            <span>{activePreset.name}</span>
+            <strong>{activePreset.name}</strong>
+            <span>Use the joystick or arrow keys to move Eyecat.</span>
           </div>
         ) : null}
         {started && instructionVisible && !levelPaused ? (
@@ -648,23 +637,23 @@ function inputFromKey(key: string): JoystickInput {
 }
 
 function shouldShowInstructionNotice(previous: RuntimeSnapshot, current: RuntimeSnapshot): boolean {
-  return current.coinsCollected > previous.coinsCollected
-    || current.keysCollected > previous.keysCollected
+  return current.keysCollected > previous.keysCollected
     || current.lives < previous.lives
     || current.frightRemaining > previous.frightRemaining
     || current.status !== previous.status
+    || (current.instructionPhase === 'key-appeared' && previous.instructionPhase !== 'key-appeared')
     || current.instructionPhase === 'blocked'
 }
 
 function compactInstruction(runtime: RuntimeSnapshot): string {
-  if (runtime.status === 'won') return 'Cat rescued.'
-  if (runtime.status === 'gameover') return 'No hearts left.'
-  if (runtime.instructionPhase === 'blocked') return runtime.message
-  if (runtime.lives < runtime.maxLives && runtime.message.includes('heart')) return runtime.message
-  if (runtime.frightRemaining > 0) return 'Vacuums are edible and trying to escape.'
-  if (runtime.instructionPhase === 'key-appeared') return 'The last key appeared.'
-  if (runtime.keysCollected >= runtime.requiredKeys) return 'All keys collected. Rescue the cat.'
-  return runtime.message
+  const missingKeys = Math.max(0, runtime.requiredKeys - runtime.keysCollected)
+  if (runtime.status === 'won') return 'Cat Rescued'
+  if (runtime.status === 'gameover') return 'Back To Level 1'
+  if (runtime.frightRemaining > 0) return 'Eyecat Is Invincible'
+  if (runtime.lives < runtime.maxLives && runtime.message.toLowerCase().includes('heart')) return 'Caught'
+  if (runtime.keysCollected >= runtime.requiredKeys) return 'Rescue The Cat'
+  if (runtime.instructionPhase === 'key-appeared' || missingKeys <= 1) return 'Find The Missing Key'
+  return 'Find The Keys'
 }
 
 function rectStyle(rect: { x: number; y: number; width: number; height: number }): CSSProperties {
