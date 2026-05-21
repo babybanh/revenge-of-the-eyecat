@@ -90,7 +90,7 @@ export type RescueProgress = {
 
 export type RuntimeStatus = 'playing' | 'won' | 'gameover'
 
-export type InstructionPhase = 'find-key' | 'collect-coins' | 'key-appeared' | 'all-keys' | 'rescue' | 'blocked' | 'lost-life' | 'won' | 'gameover'
+export type InstructionPhase = 'find-key' | 'collect-coins' | 'key-appeared' | 'all-keys' | 'rescue' | 'power-up' | 'blocked' | 'lost-life' | 'won' | 'gameover'
 
 export type RuntimeSnapshot = RescueProgress & {
   status: RuntimeStatus

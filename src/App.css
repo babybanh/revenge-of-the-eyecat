@@ -332,12 +332,32 @@ a:focus-visible {
   color: #b73737;
 }
 
+.instruction-panel.phase-power-up {
+  border-color: rgba(255, 183, 86, 0.98);
+  color: #8f3c27;
+  background: rgba(255, 247, 217, 0.94);
+  box-shadow: 0 8px 22px var(--warm-shadow), 0 0 0 2px rgba(255, 215, 129, 0.34), 0 0 18px rgba(239, 117, 72, 0.34);
+  animation: invincible-panel-pulse 1.05s ease-in-out infinite;
+}
+
 .start-control-prompt {
   padding: 6px 11px;
   border-radius: 14px;
   font-size: clamp(11px, 2.2223cqw, 16px);
   font-weight: 650;
   line-height: 1.12;
+}
+
+@keyframes invincible-panel-pulse {
+  0%,
+  100% {
+    filter: saturate(1);
+    box-shadow: 0 8px 22px var(--warm-shadow), 0 0 0 2px rgba(255, 215, 129, 0.3), 0 0 14px rgba(239, 117, 72, 0.24);
+  }
+  50% {
+    filter: saturate(1.14);
+    box-shadow: 0 8px 22px var(--warm-shadow), 0 0 0 2px rgba(255, 215, 129, 0.52), 0 0 22px rgba(239, 117, 72, 0.44);
+  }
 }
 
 .button-row {

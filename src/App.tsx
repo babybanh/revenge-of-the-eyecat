@@ -402,11 +402,11 @@ export default function App() {
       if (nextInstruction) {
         if (runtime.frightRemaining > 0 && nextInstruction === 'Eyecat is invincible.') {
           const afterPower = instructionAfterPower(runtime)
-          pendingAfterPowerInstruction.current = afterPower ? { text: afterPower, phase: runtime.instructionPhase } : null
+          pendingAfterPowerInstruction.current = afterPower ? { text: afterPower, phase: phaseForInstruction(afterPower, runtime) } : null
           if (runtime.frightRemaining <= previous.frightRemaining) return
           showInstruction(
             nextInstruction,
-            runtime.instructionPhase,
+            'power-up',
             runtime.frightRemaining * 1000 + POWER_INSTRUCTION_BUFFER_MS,
           )
           return
@@ -887,6 +887,13 @@ function instructionAfterPower(runtime: RuntimeSnapshot): string {
   if (runtime.keysCollected >= runtime.requiredKeys) return 'Rescue the cat.'
   if (runtime.instructionPhase === 'key-appeared' || (missingKeys <= 1 && hasVisibleMissingKey)) return 'Find the missing key.'
   return ''
+}
+
+function phaseForInstruction(text: string, runtime: RuntimeSnapshot): InstructionPhase {
+  if (text === 'Eyecat is invincible.') return 'power-up'
+  if (text === 'Find the missing key.') return 'key-appeared'
+  if (text === 'Rescue the cat.') return 'rescue'
+  return runtime.instructionPhase
 }
 
 function startLevelInstruction(runtime: RuntimeSnapshot): string {

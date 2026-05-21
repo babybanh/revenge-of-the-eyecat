@@ -59,7 +59,9 @@ export type PacRescueSceneOptions = {
 type ChaserRuntime = StepActor & {
   spawn: GridPoint
   inactive: number
+  defeatDelay?: number
   ghostType: GhostType
+  respawnTile?: GridPoint
   turnClock: number
 }
 
@@ -96,6 +98,8 @@ const CAMERA_SMOOTHING = 4.5
 const POWER_SPEED_MULTIPLIER = 1.1
 const LOCKED_KEY_REVEAL_DELAY = 0.75
 const LOCKED_KEY_NOTICE_DELAY = 0.45
+const VACUUM_DEFEAT_SECONDS = 0.55
+const VACUUM_RESPAWN_SECONDS = 2.5
 
 export class PacRescueScene extends Phaser.Scene {
   private options: PacRescueSceneOptions
@@ -281,6 +285,7 @@ export class PacRescueScene extends Phaser.Scene {
     }
     if (this.powerPellets.delete(key)) {
       this.frightRemaining = this.settings.frightDuration
+      this.instructionPhase = 'power-up'
       this.message = 'Power pellet active. Vacuums are edible and trying to escape.'
     }
   }
@@ -322,6 +327,18 @@ export class PacRescueScene extends Phaser.Scene {
 
       if (chaser.inactive > 0) {
         const inactive = Math.max(0, chaser.inactive - delta)
+        if ((chaser.defeatDelay ?? 0) > 0) {
+          const defeatDelay = Math.max(0, (chaser.defeatDelay ?? 0) - delta)
+          const respawnTile = defeatDelay <= 0 && chaser.respawnTile ? chaser.respawnTile : undefined
+          nextChasers.push({
+            ...chaser,
+            ...(respawnTile ? { tile: { ...respawnTile }, nextTile: { ...respawnTile }, direction: stoppedDirection, moveProgress: 0 } : {}),
+            inactive,
+            defeatDelay,
+            respawnTile: defeatDelay <= 0 ? undefined : chaser.respawnTile,
+          })
+          continue
+        }
         nextChasers.push(inactive > 0 ? { ...chaser, inactive } : { ...chaser, inactive, nextTile: { ...chaser.tile }, direction: stoppedDirection, moveProgress: 0 })
         continue
       }
@@ -364,11 +381,13 @@ export class PacRescueScene extends Phaser.Scene {
         this.message = 'Vacuum eaten. It will reappear away from you.'
         nextChasers.push({
           ...nextChaser,
-          tile: { ...respawnTile },
-          nextTile: { ...respawnTile },
+          tile: { ...nextChaser.tile },
+          nextTile: { ...nextChaser.tile },
           direction: stoppedDirection,
+          defeatDelay: VACUUM_DEFEAT_SECONDS,
           moveProgress: 0,
-          inactive: 2.5,
+          inactive: VACUUM_RESPAWN_SECONDS,
+          respawnTile: { ...respawnTile },
         })
         continue
       }
@@ -781,15 +800,20 @@ export class PacRescueScene extends Phaser.Scene {
       const sprite = this.chaserSprites[index] ?? this.add.image(0, 0, VACUUM_ENEMY_KEY).setOrigin(0.5).setDepth(2)
       this.chaserSprites[index] = sprite
 
-      const size = this.boardRect.tile * (chaser.inactive > 0 ? 0.98 : 1.3)
+      const isDefeating = (chaser.defeatDelay ?? 0) > 0
+      const defeatProgress = isDefeating ? (chaser.defeatDelay ?? 0) / VACUUM_DEFEAT_SECONDS : 0
+      const defeatPulse = isDefeating ? Math.sin((1 - defeatProgress) * Math.PI) : 0
+      const size = this.boardRect.tile * (isDefeating ? 1.3 + defeatPulse * 0.22 : chaser.inactive > 0 ? 0.98 : 1.3)
       const movingUp = chaser.direction.y < 0
       const respawnFlicker = chaser.inactive > 0 && Math.floor(this.elapsed * 4 + index) % 2 === 0
+      const defeatAlpha = 0.28 + defeatProgress * 0.72
       sprite
         .setTexture(VACUUM_ENEMY_KEY)
         .setVisible(true)
         .setPosition(this.cx(position.x), this.cy(position.y))
         .setDisplaySize(size, size)
-        .setAlpha(chaser.inactive > 0 ? (respawnFlicker ? 0.28 : 0.72) : 1)
+        .setAlpha(isDefeating ? defeatAlpha : chaser.inactive > 0 ? (respawnFlicker ? 0.28 : 0.72) : 1)
+        .setRotation(isDefeating ? Math.sin(this.elapsed * 24 + index) * 0.16 : 0)
         .setFlipX(chaser.direction.x < 0 || movingUp)
         .setFlipY(movingUp)
 
