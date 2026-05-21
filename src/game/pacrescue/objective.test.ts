@@ -38,7 +38,7 @@ describe('pac rescue objective helpers', () => {
     expect(rescueCoinGoal(state.totalCoins, 50)).toBe(6)
   })
 
-  it('reveals and collects the hidden key when the coin threshold is reached', () => {
+  it('reveals and collects the hidden key after the visible key and coin threshold are reached', () => {
     const state = createDelayedKeyState(parseMapText(keyMap))
     const settings = { ...defaultPacRescueSettings, coinGoalPercent: 50 }
 
@@ -47,12 +47,14 @@ describe('pac rescue objective helpers', () => {
     }
 
     expect(collectedCoins(state)).toBe(6)
+    expect(maybeRevealLockedKey(state, settings)).toBe(false)
+    expect(collectVisibleKey(state, pointKey({ x: 3, y: 1 }))).toBe(true)
     expect(maybeRevealLockedKey(state, settings)).toBe(true)
     expect(state.coins.has(state.lockedKey!)).toBe(false)
     expect(collectedCoins(state)).toBe(7)
     expect(state.visibleKeys.has(state.lockedKey!)).toBe(true)
     expect(collectVisibleKey(state, state.lockedKey!)).toBe(true)
-    expect(keyProgress(state).keysCollected).toBe(1)
+    expect(keyProgress(state).keysCollected).toBe(2)
   })
 
   it('resolves powered, invincible, normal, and final life hits', () => {

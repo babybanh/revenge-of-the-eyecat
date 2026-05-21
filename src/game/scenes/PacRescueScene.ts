@@ -25,7 +25,6 @@ import {
   actorPosition,
   advanceStep,
   beginStep,
-  chooseFleeStep,
   chooseGhostStep,
   chooseOppositeCornerRespawnTile,
   choosePatrollerStep,
@@ -75,7 +74,6 @@ const WORLD_WIDTH = 672
 const WORLD_HEIGHT = 672
 const MAX_LIVES = 3
 const RESPAWN_INVINCIBLE_SECONDS = 1.5
-const POWERED_CHASER_SPEED_MULTIPLIER = 1.15
 const PLAYER_COLOR = 0xffd84d
 const COIN_COLOR = 0xf3df84
 const VACUUM_ORANGE_COIN_COLOR = 0xe85b2e
@@ -94,6 +92,8 @@ const COIN_SPRITE_KEY = 'coin-sprite'
 const RESCUE_CAT_KEY = 'rescue-cat'
 const CAMERA_SMOOTHING = 4.5
 const POWER_SPEED_MULTIPLIER = 1.1
+const LOCKED_KEY_REVEAL_DELAY = 0.75
+const LOCKED_KEY_NOTICE_DELAY = 0.45
 
 export class PacRescueScene extends Phaser.Scene {
   private options: PacRescueSceneOptions
@@ -115,6 +115,8 @@ export class PacRescueScene extends Phaser.Scene {
   private lives = MAX_LIVES
   private frightRemaining = 0
   private invincibleRemaining = 0
+  private lockedKeyRevealDelay = 0
+  private lockedKeyNoticeDelay = 0
   private chasersEaten = 0
   private elapsed = 0
   private lastRuntime = ''
@@ -179,6 +181,7 @@ export class PacRescueScene extends Phaser.Scene {
     if (this.status === 'playing' && !this.options.editorMode && !this.options.isPaused?.()) {
       this.frightRemaining = Math.max(0, this.frightRemaining - delta)
       this.invincibleRemaining = Math.max(0, this.invincibleRemaining - delta)
+      this.updateLockedKeyReveal(delta)
       const previousPlayerTile = { ...this.player.tile }
       this.updatePlayer(delta)
       this.updateCollectibles()
@@ -203,6 +206,8 @@ export class PacRescueScene extends Phaser.Scene {
     this.lives = MAX_LIVES
     this.frightRemaining = 0
     this.invincibleRemaining = 0
+    this.lockedKeyRevealDelay = 0
+    this.lockedKeyNoticeDelay = 0
     this.chasersEaten = 0
   }
 
@@ -261,17 +266,39 @@ export class PacRescueScene extends Phaser.Scene {
 
     if (collectCoin(this.objective, key)) {
       this.message = 'Coin collected.'
-    }
-    if (maybeRevealLockedKey(this.objective, this.settings)) {
-      this.message = 'The last key appeared.'
-      this.instructionPhase = 'key-appeared'
+      this.queueLockedKeyReveal()
     }
     if (collectVisibleKey(this.objective, key)) {
       this.message = `${this.keysCollected()} of ${this.requiredKeys()} keys secured.`
+      this.queueLockedKeyReveal()
     }
     if (this.powerPellets.delete(key)) {
       this.frightRemaining = this.settings.frightDuration
       this.message = 'Power pellet active. Vacuums are edible and trying to escape.'
+    }
+  }
+
+  private queueLockedKeyReveal(): void {
+    if (this.lockedKeyRevealDelay > 0 || this.lockedKeyNoticeDelay > 0) return
+    if (!this.objective.lockedKey || this.objective.lockedKeyRevealed) return
+    if (this.keysCollected() < this.objective.totalKeys - 1) return
+    if (collectedCoins(this.objective) < rescueCoinGoal(this.objective.totalCoins, this.settings.coinGoalPercent)) return
+    this.lockedKeyRevealDelay = LOCKED_KEY_REVEAL_DELAY
+  }
+
+  private updateLockedKeyReveal(delta: number): void {
+    if (this.lockedKeyRevealDelay > 0) {
+      this.lockedKeyRevealDelay = Math.max(0, this.lockedKeyRevealDelay - delta)
+      if (this.lockedKeyRevealDelay <= 0 && maybeRevealLockedKey(this.objective, this.settings)) {
+        this.lockedKeyNoticeDelay = LOCKED_KEY_NOTICE_DELAY
+      }
+    }
+    if (this.lockedKeyNoticeDelay > 0) {
+      this.lockedKeyNoticeDelay = Math.max(0, this.lockedKeyNoticeDelay - delta)
+      if (this.lockedKeyNoticeDelay <= 0) {
+        this.message = 'The last key appeared.'
+        this.instructionPhase = 'key-appeared'
+      }
     }
   }
 
@@ -297,9 +324,7 @@ export class PacRescueScene extends Phaser.Scene {
       nextChaser.turnClock = Math.max(0, nextChaser.turnClock - delta)
       if (!isMoving(nextChaser)) {
         const shouldTurn = nextChaser.turnClock <= 0
-        const direction = this.frightRemaining > 0
-          ? chooseFleeStep(this.level, nextChaser.tile, this.player.tile, blocksPrincessZone)
-          : nextChaser.ghostType === 'chaser'
+        const direction = nextChaser.ghostType === 'chaser'
           ? chooseGhostStep(this.level, nextChaser.tile, this.player.tile, blocksPrincessZone)
           : choosePatrollerStep(this.level, nextChaser.tile, nextChaser.direction, this.elapsed + nextChaser.tile.x + nextChaser.tile.y, shouldTurn, blocksPrincessZone)
         nextChaser = {
@@ -383,9 +408,7 @@ export class PacRescueScene extends Phaser.Scene {
   }
 
   private chaserMoveSpeed(): number {
-    return this.frightRemaining > 0
-      ? this.settings.chaserSpeed * POWERED_CHASER_SPEED_MULTIPLIER
-      : this.settings.chaserSpeed
+    return this.settings.chaserSpeed
   }
 
   private checkHostage(): void {

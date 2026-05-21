@@ -72,6 +72,9 @@ export function maybeRevealLockedKey(state: DelayedKeyState, settings: PacRescue
   if (!state.lockedKey || state.lockedKeyRevealed) {
     return false
   }
+  if (collectedKeys(state) < state.totalKeys - 1) {
+    return false
+  }
   if (collectedCoins(state) < rescueCoinGoal(state.totalCoins, settings.coinGoalPercent)) {
     return false
   }

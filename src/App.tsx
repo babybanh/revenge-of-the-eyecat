@@ -21,6 +21,7 @@ const KEY_REMINDER_FIRST_MS = 5000
 const KEY_REMINDER_REPEAT_MS = 10000
 const POWER_INSTRUCTION_BUFFER_MS = 200
 const KEYBOARD_JOYSTICK_HIDE_MS = 1800
+const LEVEL_START_REMINDER_DELAY = LEVEL_INSTRUCTION_DELAY + LEVEL_INSTRUCTION_DURATION + KEY_REMINDER_FIRST_MS
 
 type MapPreset = {
   id: string
@@ -234,7 +235,7 @@ export default function App() {
       delayedInstructionTimer.current = undefined
       showInstruction(startLevelInstruction(snapshot), 'find-key', LEVEL_INSTRUCTION_DURATION)
     }, LEVEL_INSTRUCTION_DELAY)
-    scheduleKeyReminder(snapshot)
+    scheduleKeyReminder(snapshot, LEVEL_START_REMINDER_DELAY)
   }, [scheduleKeyReminder, showInstruction])
 
   const resumeLevelFromPause = useCallback(() => {
@@ -868,20 +869,23 @@ function shouldShowInstructionNotice(previous: RuntimeSnapshot, current: Runtime
 
 function compactInstruction(runtime: RuntimeSnapshot): string {
   const missingKeys = Math.max(0, runtime.requiredKeys - runtime.keysCollected)
+  const hasVisibleMissingKey = runtime.keysVisible > 0
   if (runtime.status === 'won') return ''
   if (runtime.status === 'gameover') return 'Back to level 1.'
   if (runtime.lives < runtime.maxLives && runtime.message.toLowerCase().includes('heart')) return 'Caught.'
   if (runtime.keysCollected >= runtime.requiredKeys) return 'Rescue the cat.'
   if (runtime.frightRemaining > 0) return 'Eyecat is invincible.'
-  if (runtime.instructionPhase === 'key-appeared' || missingKeys <= 1) return 'Find the missing key.'
+  if (runtime.instructionPhase === 'key-appeared' || (missingKeys <= 1 && hasVisibleMissingKey)) return 'Find the missing key.'
+  if (missingKeys <= 1) return ''
   return 'Find the keys.'
 }
 
 function instructionAfterPower(runtime: RuntimeSnapshot): string {
   const missingKeys = Math.max(0, runtime.requiredKeys - runtime.keysCollected)
+  const hasVisibleMissingKey = runtime.keysVisible > 0
   if (runtime.status !== 'playing') return ''
   if (runtime.keysCollected >= runtime.requiredKeys) return 'Rescue the cat.'
-  if (runtime.instructionPhase === 'key-appeared' || missingKeys <= 1) return 'Find the missing key.'
+  if (runtime.instructionPhase === 'key-appeared' || (missingKeys <= 1 && hasVisibleMissingKey)) return 'Find the missing key.'
   return ''
 }
 
