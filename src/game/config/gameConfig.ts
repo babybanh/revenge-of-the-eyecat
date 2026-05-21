@@ -1,7 +1,7 @@
 export const gameConfig = {
   copy: {
     title: 'Revenge of the Eyecat',
-    startPrompt: 'Use the joystick or arrow keys to move Eyecat.',
+    startPrompt: 'Move Eyecat with joystick or arrow keys.',
     startHint: 'Move Eyecat with the joystick, arrow keys, or WASD. Collect coins and keys, then rescue the cat.',
     creditsLabel: 'Credits',
     musicStartLabel: 'Music: On',
@@ -41,7 +41,7 @@ export const gameConfig = {
     topBar: { x: 40, y: 24, width: 640, height: 56 },
     playfield: { x: 96, y: 116, width: 528, height: 528 },
     bottomControls: { x: 0, y: 696, width: 720, height: 144 },
-    prompt: { x: 360, y: 572, width: 400 },
+    prompt: { x: 360, y: 572, width: 420 },
     eventPrompt: { x: 360, y: 654, width: 204 },
     buttons: {
       credits: { x: 40, y: 716, width: 92, height: 44 },

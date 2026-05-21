@@ -91,7 +91,7 @@ const EYE_CAT_WHITE_PLAYER_KEY = 'player-eye-cat-white'
 const EYE_CAT_PLAIN_PLAYER_KEY = 'player-eye-cat-plain'
 const COIN_SPRITE_KEY = 'coin-sprite'
 const KEY_ITEM_KEY = 'item-key'
-const KEY_ITEM_YELLOW_KEY = 'item-key-yellow'
+const KEY_ITEM_GREEN_KEY = 'item-key-green'
 const POWER_UP_ITEM_KEY = 'item-power-up'
 const RESCUE_CAT_KEY = 'rescue-cat'
 const CAMERA_SMOOTHING = 4.5
@@ -152,7 +152,7 @@ export class PacRescueScene extends Phaser.Scene {
       this.load.image(COIN_SPRITE_KEY, '/characters/character-coin.png')
     }
     this.load.image(KEY_ITEM_KEY, '/characters/item-key.png')
-    this.load.image(KEY_ITEM_YELLOW_KEY, '/characters/item-key-yellow.png')
+    this.load.image(KEY_ITEM_GREEN_KEY, '/characters/item-key-green.png')
     this.load.image(POWER_UP_ITEM_KEY, '/characters/item-power-up.png')
     this.load.image(RESCUE_CAT_KEY, '/characters/character-white-cat.png')
   }
@@ -681,7 +681,7 @@ export class PacRescueScene extends Phaser.Scene {
   private drawKeySprites(keys: string[]): void {
     for (let index = 0; index < keys.length; index += 1) {
       const point = parseKey(keys[index])
-      const textureKey = keys[index] === this.objective.lockedKey ? KEY_ITEM_YELLOW_KEY : KEY_ITEM_KEY
+      const textureKey = keys[index] === this.objective.lockedKey ? KEY_ITEM_GREEN_KEY : KEY_ITEM_KEY
       const sprite = this.keySprites[index] ?? this.add.image(0, 0, textureKey).setOrigin(0.5).setDepth(1.25)
       this.keySprites[index] = sprite
       const pulse = this.elapsed % 5

@@ -17,11 +17,10 @@ const PHASER_WORLD_SIZE = 672
 const LEVEL_INSTRUCTION_DURATION = 2600
 const EVENT_INSTRUCTION_DURATION = 2200
 const LEVEL_INSTRUCTION_DELAY = 1800
-const KEY_REMINDER_FIRST_MS = 5000
-const KEY_REMINDER_REPEAT_MS = 10000
+const IDLE_KEY_REMINDER_MS = 5000
+const INSTRUCTION_RETRY_MS = 900
 const POWER_INSTRUCTION_BUFFER_MS = 200
 const KEYBOARD_JOYSTICK_HIDE_MS = 1800
-const LEVEL_START_REMINDER_DELAY = LEVEL_INSTRUCTION_DELAY + LEVEL_INSTRUCTION_DURATION + KEY_REMINDER_FIRST_MS
 
 type MapPreset = {
   id: string
@@ -100,10 +99,11 @@ export default function App() {
   const keyboardStartRef = useRef(false)
   const runtimeRef = useRef<RuntimeSnapshot | null>(null)
   const previousRuntime = useRef<RuntimeSnapshot | null>(null)
+  const instructionVisibleRef = useRef(false)
   const instructionTimer = useRef<number | undefined>(undefined)
   const delayedInstructionTimer = useRef<number | undefined>(undefined)
   const keyReminderTimer = useRef<number | undefined>(undefined)
-  const keyReminderInterval = useRef<number | undefined>(undefined)
+  const keyReminderShown = useRef(false)
   const keyboardJoystickTimer = useRef<number | undefined>(undefined)
   const pendingAfterPowerInstruction = useRef<{ text: string; phase: InstructionPhase } | null>(null)
   const [activeIndex, setActiveIndex] = useState(0)
@@ -158,6 +158,10 @@ export default function App() {
     runtimeRef.current = runtime
   }, [runtime])
 
+  useEffect(() => {
+    instructionVisibleRef.current = instructionVisible
+  }, [instructionVisible])
+
   useEffect(() => () => {
     if (instructionTimer.current) {
       window.clearTimeout(instructionTimer.current)
@@ -167,9 +171,6 @@ export default function App() {
     }
     if (keyReminderTimer.current) {
       window.clearTimeout(keyReminderTimer.current)
-    }
-    if (keyReminderInterval.current) {
-      window.clearInterval(keyReminderInterval.current)
     }
     if (keyboardJoystickTimer.current) {
       window.clearTimeout(keyboardJoystickTimer.current)
@@ -195,32 +196,21 @@ export default function App() {
       window.clearTimeout(keyReminderTimer.current)
       keyReminderTimer.current = undefined
     }
-    if (keyReminderInterval.current) {
-      window.clearInterval(keyReminderInterval.current)
-      keyReminderInterval.current = undefined
-    }
   }, [])
 
-  const scheduleKeyReminder = useCallback((snapshot: RuntimeSnapshot, delay = KEY_REMINDER_FIRST_MS) => {
+  const scheduleKeyReminder = useCallback((snapshot: RuntimeSnapshot, delay = IDLE_KEY_REMINDER_MS) => {
     clearKeyReminder()
-    if (snapshot.status !== 'playing' || snapshot.keysCollected >= snapshot.requiredKeys) return
+    if (keyReminderShown.current || snapshot.status !== 'playing' || snapshot.keysCollected >= snapshot.requiredKeys) return
     const showReminderIfAllowed = () => {
       const current = runtimeRef.current ?? snapshot
-      if (current.status !== 'playing' || current.keysCollected >= current.requiredKeys) return
-      if (current.frightRemaining > 0) {
-        keyReminderTimer.current = window.setTimeout(
-          showReminderIfAllowed,
-          current.frightRemaining * 1000 + POWER_INSTRUCTION_BUFFER_MS,
-        )
+      if (keyReminderShown.current || current.status !== 'playing' || current.keysCollected >= current.requiredKeys) return
+      if (levelPausedRef.current || current.frightRemaining > 0 || instructionVisibleRef.current || pendingAfterPowerInstruction.current) {
+        keyReminderTimer.current = window.setTimeout(showReminderIfAllowed, INSTRUCTION_RETRY_MS)
         return
       }
       keyReminderTimer.current = undefined
+      keyReminderShown.current = true
       showInstruction(startLevelInstruction(current), 'find-key', LEVEL_INSTRUCTION_DURATION)
-      keyReminderInterval.current = window.setInterval(() => {
-        const latest = runtimeRef.current ?? current
-        if (latest.status !== 'playing' || latest.keysCollected >= latest.requiredKeys || latest.frightRemaining > 0) return
-        showInstruction(startLevelInstruction(latest), 'find-key', LEVEL_INSTRUCTION_DURATION)
-      }, KEY_REMINDER_REPEAT_MS)
     }
     keyReminderTimer.current = window.setTimeout(showReminderIfAllowed, delay)
   }, [clearKeyReminder, showInstruction])
@@ -231,12 +221,12 @@ export default function App() {
     }
     setInstructionVisible(false)
     setInstructionText('')
+    keyReminderShown.current = false
     delayedInstructionTimer.current = window.setTimeout(() => {
       delayedInstructionTimer.current = undefined
-      showInstruction(startLevelInstruction(snapshot), 'find-key', LEVEL_INSTRUCTION_DURATION)
+      scheduleKeyReminder(snapshot)
     }, LEVEL_INSTRUCTION_DELAY)
-    scheduleKeyReminder(snapshot, LEVEL_START_REMINDER_DELAY)
-  }, [scheduleKeyReminder, showInstruction])
+  }, [scheduleKeyReminder])
 
   const resumeLevelFromPause = useCallback(() => {
     setLevelPaused(false)
@@ -297,6 +287,7 @@ export default function App() {
       }
 
       if (isMovementKey(event.key)) {
+        clearKeyReminder()
         unlockAudio()
         startMusicFromMovement()
         if (!showCredits && !showConcept) {
@@ -306,7 +297,7 @@ export default function App() {
           event.preventDefault()
           keyboardStartRef.current = true
           startGame(inputFromKey(event.key))
-        } else if (started && levelPaused && !showCredits && !showConcept) {
+        } else if (started && levelPausedRef.current && !showCredits && !showConcept) {
           event.preventDefault()
           resumeLevelFromPause()
         }
@@ -318,6 +309,10 @@ export default function App() {
         joystickRef.current = ZERO_INPUT
         keyboardStartRef.current = false
       }
+      if (isMovementKey(event.key) && started && !levelPausedRef.current && !showCredits && !showConcept) {
+        const current = runtimeRef.current
+        if (current) scheduleKeyReminder(current)
+      }
     }
 
     window.addEventListener('keydown', handleKey)
@@ -326,7 +321,7 @@ export default function App() {
       window.removeEventListener('keydown', handleKey)
       window.removeEventListener('keyup', handleKeyUp)
     }
-  }, [hideJoystickForKeyboard, levelPaused, resumeLevelFromPause, started, showCredits, showConcept, startGame, startMusicFromMovement, unlockAudio])
+  }, [clearKeyReminder, hideJoystickForKeyboard, resumeLevelFromPause, scheduleKeyReminder, started, showCredits, showConcept, startGame, startMusicFromMovement, unlockAudio])
 
   useEffect(() => {
     if (!started || !hostRef.current) return
@@ -386,9 +381,6 @@ export default function App() {
       clearKeyReminder()
       playSfx('gameover')
     }
-    if (runtime.keysCollected > previous.keysCollected) {
-      scheduleKeyReminder(runtime)
-    }
     if (previous.frightRemaining > 0 && runtime.frightRemaining <= 0 && pendingAfterPowerInstruction.current) {
       const pending = pendingAfterPowerInstruction.current
       pendingAfterPowerInstruction.current = null
@@ -414,7 +406,7 @@ export default function App() {
         showInstruction(nextInstruction, runtime.instructionPhase)
       }
     }
-  }, [runtime, audioUnlocked, clearKeyReminder, levelPaused, scheduleKeyReminder, showInstruction, started])
+  }, [runtime, audioUnlocked, clearKeyReminder, levelPaused, showInstruction, started])
 
   const switchPreset = useCallback((index: number, shouldStart: boolean, shouldPause = false) => {
     const preset = mapPresets[index] ?? mapPresets[0]
@@ -478,7 +470,9 @@ export default function App() {
 
   const handleJoystick = (input: JoystickInput) => {
     joystickRef.current = input
-    if (Math.hypot(input.x, input.y) > 0.12) {
+    const isMoving = Math.hypot(input.x, input.y) > 0.12
+    if (isMoving) {
+      clearKeyReminder()
       if (keyboardJoystickTimer.current) {
         window.clearTimeout(keyboardJoystickTimer.current)
         keyboardJoystickTimer.current = undefined
@@ -492,6 +486,9 @@ export default function App() {
       } else if (started && levelPaused && !showCredits && !showConcept) {
         resumeLevelFromPause()
       }
+    } else if (started && !levelPaused && !showCredits && !showConcept) {
+      const current = runtimeRef.current
+      if (current) scheduleKeyReminder(current)
     }
   }
 

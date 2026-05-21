@@ -282,11 +282,12 @@ a:focus-visible {
 .instruction-panel,
 .level-ready-prompt {
   display: block;
-  padding: 6px 11px;
-  border-radius: 14px;
+  min-height: 26px;
+  padding: 4px 11px 3px;
+  border-radius: 13px;
   font-size: clamp(9px, 1.72cqw, 13px);
   font-weight: 650;
-  line-height: 1.12;
+  line-height: 1;
 }
 
 .instruction-panel {
@@ -313,6 +314,7 @@ a:focus-visible {
 .instruction-panel span {
   color: inherit;
   font: inherit;
+  white-space: nowrap;
 }
 
 .level-ready-prompt strong {
@@ -333,10 +335,10 @@ a:focus-visible {
 }
 
 .instruction-panel.phase-power-up {
-  border-color: rgba(255, 183, 86, 0.98);
+  border-color: rgba(255, 239, 191, 0.98);
   color: #8f3c27;
   background: rgba(255, 247, 217, 0.94);
-  box-shadow: 0 8px 22px var(--warm-shadow), 0 0 0 2px rgba(255, 215, 129, 0.34), 0 0 18px rgba(239, 117, 72, 0.34);
+  box-shadow: 0 8px 22px var(--warm-shadow), 0 0 0 2px rgba(255, 246, 214, 0.36), 0 0 18px rgba(239, 117, 72, 0.28);
   animation: invincible-panel-pulse 1.05s ease-in-out infinite;
 }
 
@@ -346,17 +348,18 @@ a:focus-visible {
   font-size: clamp(11px, 2.2223cqw, 16px);
   font-weight: 650;
   line-height: 1.12;
+  white-space: nowrap;
 }
 
 @keyframes invincible-panel-pulse {
   0%,
   100% {
     filter: saturate(1);
-    box-shadow: 0 8px 22px var(--warm-shadow), 0 0 0 2px rgba(255, 215, 129, 0.3), 0 0 14px rgba(239, 117, 72, 0.24);
+    box-shadow: 0 8px 22px var(--warm-shadow), 0 0 0 2px rgba(255, 246, 214, 0.3), 0 0 14px rgba(239, 117, 72, 0.2);
   }
   50% {
     filter: saturate(1.14);
-    box-shadow: 0 8px 22px var(--warm-shadow), 0 0 0 2px rgba(255, 215, 129, 0.52), 0 0 22px rgba(239, 117, 72, 0.44);
+    box-shadow: 0 8px 22px var(--warm-shadow), 0 0 0 2px rgba(255, 246, 214, 0.48), 0 0 22px rgba(239, 117, 72, 0.38);
   }
 }
 
@@ -874,6 +877,15 @@ a:focus-visible {
 }
 
 @media (max-width: 560px) {
+  .instruction-panel,
+  .level-ready-prompt {
+    min-height: 20px;
+    padding: 3px 9px 2px;
+    border-width: 2px;
+    border-radius: 12px;
+    font-size: clamp(8px, 2.4cqw, 10px);
+  }
+
   .heart-strip {
     width: 11.875%;
   }
@@ -884,45 +896,65 @@ a:focus-visible {
 
   .modal-card,
   .credits-modal .modal-card {
-    width: min(500px, calc(100% - 20px));
-    padding: 22px 18px 20px;
+    width: min(340px, calc(100% - 56px));
+    padding: 18px 16px 20px;
+    border-radius: 24px 26px 22px 26px;
+  }
+
+  .modal-title {
+    margin: 10px auto 10px;
+    padding: 0 36px;
+    font-size: 22px;
   }
 
   .modal-subtitle {
+    margin: 0 16px 12px;
     font-size: 13px;
   }
 
   .concept-image {
-    width: min(var(--concept-image-width, 340px), 100%, 56vh);
-    max-height: min(var(--concept-image-max-height, 430px), 56vh);
+    width: min(var(--concept-image-width, 280px), 100%, 48vh);
+    max-height: min(var(--concept-image-max-height, 280px), 48vh);
+    border-radius: 15px;
+  }
+
+  .concept-modal .modal-card {
+    width: min(342px, calc(100% - 56px));
+    gap: 8px;
+    padding: 18px 16px 20px;
+    transform: translateY(-14px);
+  }
+
+  .concept-modal .modal-title {
+    font-size: 21px;
   }
 
   .credits-modal .modal-card {
-    width: min(500px, calc(100% - 36px));
-    padding: 30px 34px 28px;
+    width: min(340px, calc(100% - 56px));
+    padding: 22px 22px 22px;
   }
 
   .credits-modal .modal-title {
-    max-width: 390px;
-    margin: 8px auto 20px;
+    max-width: 280px;
+    margin: 8px auto 14px;
     padding: 0;
-    font-size: 26px;
+    font-size: 22px;
     line-height: 1;
   }
 
   .credits-copy {
-    margin: 18px auto 0;
-    max-width: 400px;
-    font-size: 16px;
-    line-height: 1.35;
+    margin: 12px auto 0;
+    max-width: 270px;
+    font-size: 14px;
+    line-height: 1.25;
   }
 
   .credits-copy + .credits-copy {
-    margin-top: 18px;
+    margin-top: 12px;
   }
 
   .credits-copy a {
     margin-top: 2px;
-    font-size: 19px;
+    font-size: 16px;
   }
 }
