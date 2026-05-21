@@ -78,7 +78,6 @@ const PLAYER_COLOR = 0xffd84d
 const COIN_COLOR = 0xf3df84
 const VACUUM_ORANGE_COIN_COLOR = 0xe85b2e
 const KEY_COLOR = 0x71d8ff
-const POWER_COLOR = 0xff8fd1
 const HOSTAGE_COLOR = 0x68e095
 const CHASER_COLOR = 0xf05a5a
 const PATROLLER_COLOR = 0xf2a04a
@@ -90,6 +89,7 @@ const EYE_CAT_BRONZE_PLAYER_KEY = 'player-eye-cat-bronze'
 const EYE_CAT_WHITE_PLAYER_KEY = 'player-eye-cat-white'
 const EYE_CAT_PLAIN_PLAYER_KEY = 'player-eye-cat-plain'
 const COIN_SPRITE_KEY = 'coin-sprite'
+const POWER_UP_ITEM_KEY = 'item-power-up'
 const RESCUE_CAT_KEY = 'rescue-cat'
 const CAMERA_SMOOTHING = 4.5
 const POWER_SPEED_MULTIPLIER = 1.1
@@ -103,6 +103,7 @@ export class PacRescueScene extends Phaser.Scene {
   private graphics?: Phaser.GameObjects.Graphics
   private chaserSprites: Phaser.GameObjects.Image[] = []
   private coinSprites: Phaser.GameObjects.Image[] = []
+  private powerPelletSprites: Phaser.GameObjects.Image[] = []
   private playerSprite?: Phaser.GameObjects.Image
   private hostageSprite?: Phaser.GameObjects.Image
   private keys?: Record<'left' | 'right' | 'up' | 'down' | 'a' | 'd' | 'w' | 's', Phaser.Input.Keyboard.Key>
@@ -145,6 +146,7 @@ export class PacRescueScene extends Phaser.Scene {
     if (this.settings.coinSkin === 'coin') {
       this.load.image(COIN_SPRITE_KEY, '/characters/character-coin.png')
     }
+    this.load.image(POWER_UP_ITEM_KEY, '/characters/item-power-up.png')
     this.load.image(RESCUE_CAT_KEY, '/characters/character-white-cat.png')
   }
 
@@ -620,13 +622,7 @@ export class PacRescueScene extends Phaser.Scene {
       const point = parseKey(key)
       this.drawKey(g, point.x, point.y)
     }
-    for (const key of this.powerPellets) {
-      const point = parseKey(key)
-      g.fillStyle(POWER_COLOR, 1)
-      g.fillCircle(this.cx(point.x), this.cy(point.y), this.boardRect.tile * 0.21)
-      g.lineStyle(2, 0xffffff, 0.52)
-      g.strokeCircle(this.cx(point.x), this.cy(point.y), this.boardRect.tile * 0.27)
-    }
+    this.drawPowerPelletSprites()
   }
 
   private drawCoinSprites(): void {
@@ -651,6 +647,27 @@ export class PacRescueScene extends Phaser.Scene {
   private hideCoinSprites(): void {
     for (const sprite of this.coinSprites) {
       sprite.setVisible(false)
+    }
+  }
+
+  private drawPowerPelletSprites(): void {
+    const pellets = [...this.powerPellets]
+    for (let index = 0; index < pellets.length; index += 1) {
+      const point = parseKey(pellets[index])
+      const sprite = this.powerPelletSprites[index] ?? this.add.image(0, 0, POWER_UP_ITEM_KEY).setOrigin(0.5).setDepth(1.2)
+      this.powerPelletSprites[index] = sprite
+      const pulse = 1 + Math.sin(this.elapsed * 5.5 + point.x + point.y) * 0.08
+      const size = this.boardRect.tile * 0.68 * pulse
+      sprite
+        .setVisible(true)
+        .setPosition(this.cx(point.x), this.cy(point.y))
+        .setDisplaySize(size, size)
+        .setRotation(-0.16)
+        .setAlpha(0.96)
+    }
+
+    for (let index = pellets.length; index < this.powerPelletSprites.length; index += 1) {
+      this.powerPelletSprites[index].setVisible(false)
     }
   }
 
@@ -727,12 +744,15 @@ export class PacRescueScene extends Phaser.Scene {
 
       const size = this.boardRect.tile * (chaser.inactive > 0 ? 1 : 1.34)
       const movingUp = chaser.direction.y < 0
-      const weakFrame = this.frightRemaining > 0 && chaser.inactive <= 0 && Math.floor(this.elapsed * 5 + index) % 2 === 0
+      const weakFrame = chaser.inactive > 0 || this.frightRemaining > 0
+      const poweredPulse = this.frightRemaining > 0 && chaser.inactive <= 0
+        ? 1 + Math.sin(this.elapsed * 9 + index) * 0.06
+        : 1
       sprite
         .setTexture(weakFrame ? VACUUM_WEAK_ENEMY_KEY : VACUUM_ENEMY_KEY)
         .setVisible(true)
         .setPosition(this.cx(position.x), this.cy(position.y))
-        .setDisplaySize(size, size)
+        .setDisplaySize(size * poweredPulse, size * poweredPulse)
         .setAlpha(chaser.inactive > 0 ? 0.42 : 1)
         .setFlipX(chaser.direction.x < 0 || movingUp)
         .setFlipY(movingUp)
@@ -740,6 +760,8 @@ export class PacRescueScene extends Phaser.Scene {
       sprite.clearTint()
       if (chaser.inactive > 0) {
         sprite.setTint(EATEN_COLOR)
+      } else if (this.frightRemaining > 0) {
+        sprite.setTint(0xded8ff)
       }
     }
 
