@@ -108,7 +108,6 @@ export default function App() {
   const [showConcept, setShowConcept] = useState(false)
   const [devOpen, setDevOpen] = useState(false)
   const [loading, setLoading] = useState(true)
-  const activePreset = mapPresets[activeIndex] ?? mapPresets[0]
   const counts = useMemo(() => mapCounts(mapText), [mapText])
   const finished = runtime.status === 'won' || runtime.status === 'gameover'
   const shellStyle = useMemo(() => ({
@@ -382,7 +381,7 @@ export default function App() {
         <footer className="bottom-controls" style={rectStyle(gameConfig.layout.bottomControls)} aria-hidden="true" />
         {started && levelPaused ? (
           <div className="level-ready-prompt" style={centeredTextStyle(gameConfig.layout.eventPrompt)}>
-            <strong>{activePreset.name}</strong>
+            <strong>Find the keys and rescue the cat.</strong>
           </div>
         ) : null}
         {started && instructionVisible && !levelPaused ? (
@@ -659,13 +658,13 @@ function shouldShowInstructionNotice(previous: RuntimeSnapshot, current: Runtime
 
 function compactInstruction(runtime: RuntimeSnapshot): string {
   const missingKeys = Math.max(0, runtime.requiredKeys - runtime.keysCollected)
-  if (runtime.status === 'won') return 'Cat Rescued'
-  if (runtime.status === 'gameover') return 'Back To Level 1'
-  if (runtime.frightRemaining > 0) return 'Eyecat Is Invincible'
-  if (runtime.lives < runtime.maxLives && runtime.message.toLowerCase().includes('heart')) return 'Caught'
-  if (runtime.keysCollected >= runtime.requiredKeys) return 'Rescue The Cat'
-  if (runtime.instructionPhase === 'key-appeared' || missingKeys <= 1) return 'Find The Missing Key'
-  return 'Find The Keys'
+  if (runtime.status === 'won') return 'Cat rescued.'
+  if (runtime.status === 'gameover') return 'Back to level 1.'
+  if (runtime.frightRemaining > 0) return 'Eyecat is invincible.'
+  if (runtime.lives < runtime.maxLives && runtime.message.toLowerCase().includes('heart')) return 'Caught.'
+  if (runtime.keysCollected >= runtime.requiredKeys) return 'Rescue the cat.'
+  if (runtime.instructionPhase === 'key-appeared' || missingKeys <= 1) return 'Find the missing key.'
+  return 'Find the keys.'
 }
 
 function rectStyle(rect: { x: number; y: number; width: number; height: number }): CSSProperties {

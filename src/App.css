@@ -10,8 +10,6 @@
   --gold: #f7dfad;
   --gold-strong: #e8c276;
   --button-shadow: #9f7242;
-  --button-cream: #fff3dc;
-  --button-cream-bright: #fffaf0;
   --orange-deep: #d95b32;
   --orange-shadow: #bf5146;
   --teal: #8ed8d1;
@@ -66,11 +64,11 @@
 
 button {
   min-height: 0;
-  border: 2px solid rgba(217, 91, 50, 0.72);
+  border: 0;
   border-radius: 22px;
-  color: var(--orange-deep);
-  background: linear-gradient(var(--button-cream-bright), var(--button-cream));
-  box-shadow: 0 6px 0 var(--orange-shadow);
+  color: var(--cocoa);
+  background: linear-gradient(#fff7e8, var(--gold));
+  box-shadow: 0 6px 0 var(--button-shadow), 0 12px 22px rgba(5, 8, 18, 0.18);
   cursor: pointer;
   font: inherit;
   font-weight: 650;
@@ -78,7 +76,7 @@ button {
 
 button:active {
   transform: translateY(3px);
-  box-shadow: 0 3px 0 var(--orange-shadow);
+  box-shadow: 0 3px 0 var(--button-shadow), 0 8px 16px rgba(5, 8, 18, 0.16);
 }
 
 button:focus-visible,
@@ -262,22 +260,12 @@ a:focus-visible {
   color: var(--cocoa);
   background: var(--cream-soft);
   box-shadow: 0 8px 22px var(--warm-shadow);
+  font-size: clamp(10px, 2.1cqw, 15px);
+  font-weight: 560;
+  line-height: 1.25;
   text-align: center;
+  text-shadow: 0 2px 0 rgba(255, 239, 211, 0.78);
   pointer-events: none;
-}
-
-.instruction-panel {
-  padding: 5px 12px;
-  border-width: 2px;
-  border-radius: 14px;
-  background: rgba(255, 241, 220, 0.82);
-  box-shadow: 0 6px 16px rgba(97, 45, 52, 0.18);
-}
-
-.level-ready-prompt {
-  padding: 5px 12px;
-  border-width: 2px;
-  border-radius: 14px;
 }
 
 .instruction-panel,
@@ -294,36 +282,14 @@ a:focus-visible {
   overflow-wrap: anywhere;
 }
 
-.instruction-panel strong {
-  color: #2d5529;
-  font-size: clamp(10px, 2.1cqw, 15px);
-  line-height: 1.05;
-}
-
 .instruction-panel span {
-  color: var(--cocoa-soft);
-  font-size: clamp(9px, 1.7cqw, 12px);
-  font-weight: 750;
-  line-height: 1;
-}
-
-.level-ready-prompt strong,
-.level-ready-prompt span {
-  display: block;
+  color: inherit;
+  font: inherit;
 }
 
 .level-ready-prompt strong {
-  color: var(--cocoa);
-  font-size: clamp(11px, 2cqw, 15px);
-  line-height: 1.05;
-}
-
-.level-ready-prompt span {
-  margin-top: 2px;
-  color: var(--orange-deep);
-  font-size: clamp(8px, 1.55cqw, 11px);
-  font-weight: 750;
-  line-height: 1;
+  color: inherit;
+  font: inherit;
 }
 
 .instruction-panel.phase-collect-coins strong,
@@ -357,8 +323,8 @@ a:focus-visible {
 }
 
 .music-button.active {
-  background: linear-gradient(var(--button-cream-bright), var(--button-cream));
-  box-shadow: 0 6px 0 var(--orange-shadow);
+  background: linear-gradient(#fff7e8, var(--gold));
+  box-shadow: 0 6px 0 var(--button-shadow), 0 12px 22px rgba(5, 8, 18, 0.18);
 }
 
 .joystick-wrap {
@@ -375,8 +341,8 @@ a:focus-visible {
   height: 100%;
   border: 5px solid rgba(53, 36, 31, 0.28);
   border-radius: 50%;
-  background: rgba(255, 238, 211, 0.38);
-  box-shadow: inset 0 0 0 2px rgba(255, 247, 221, 0.34);
+  background: var(--cream-glass);
+  box-shadow: inset 0 0 0 2px rgba(255, 247, 221, 0.35);
   cursor: grab;
   touch-action: none;
 }
@@ -394,10 +360,10 @@ a:focus-visible {
   height: 44%;
   margin-left: -22%;
   margin-top: -22%;
-  border: 4px solid rgba(53, 36, 31, 0.44);
+  border: 4px solid rgba(53, 36, 31, 0.36);
   border-radius: 50%;
-  background: rgba(255, 119, 87, 0.88);
-  box-shadow: 0 5px 0 rgba(255, 232, 204, 0.68), 0 14px 24px rgba(5, 8, 18, 0.18);
+  background: linear-gradient(#fff7e8, var(--gold));
+  box-shadow: 0 6px 0 rgba(159, 114, 66, 0.66), 0 14px 24px rgba(5, 8, 18, 0.2);
 }
 
 .start-overlay {
