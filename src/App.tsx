@@ -23,6 +23,21 @@ const INSTRUCTION_RETRY_MS = 900
 const POWER_INSTRUCTION_BUFFER_MS = 200
 const KEYBOARD_JOYSTICK_HIDE_MS = 1800
 const MUSIC_VOLUME = 0.36
+const PRELOAD_IMAGE_PATHS = [
+  gameConfig.assets.background,
+  gameConfig.assets.player,
+  gameConfig.assets.hostage,
+  gameConfig.assets.vacuum,
+  '/characters/item-key.png',
+  '/characters/item-key-green.png',
+  '/characters/item-power-up.png',
+  gameConfig.assets.concept,
+]
+
+type EyecatAudioWindow = Window & {
+  eyecatAudioContext?: AudioContext
+  webkitAudioContext?: typeof AudioContext
+}
 
 type MapPreset = {
   id: string
@@ -112,6 +127,7 @@ export default function App() {
   const musicPrimeTimer = useRef<number | undefined>(undefined)
   const musicPrimedRef = useRef(false)
   const musicWasPlayingBeforeHidden = useRef(false)
+  const sfxPrimedRef = useRef(false)
   const pendingAfterPowerInstruction = useRef<{ text: string; phase: InstructionPhase } | null>(null)
   const [activeIndex, setActiveIndex] = useState(0)
   const [mapText, setMapText] = useState(mapPresets[0].mapText)
@@ -145,11 +161,20 @@ export default function App() {
 
   const unlockAudio = useCallback(() => {
     if (!audioContextRef.current) {
-      audioContextRef.current = new AudioContext()
-      ;(window as Window & { eyecatAudioContext?: AudioContext }).eyecatAudioContext = audioContextRef.current
+      audioContextRef.current = getEyecatAudioContext()
     }
-    if (audioContextRef.current.state === 'suspended') {
-      void audioContextRef.current.resume()
+    const context = audioContextRef.current
+    if (!context) return
+    const primeSfx = () => {
+      if (sfxPrimedRef.current) return
+      primeSfxContext(context)
+      sfxPrimedRef.current = true
+    }
+    primeSfx()
+    if (context.state === 'suspended') {
+      void context.resume().then(primeSfx).catch(() => {
+        sfxPrimedRef.current = false
+      })
     }
     setAudioUnlocked(true)
   }, [])
@@ -189,6 +214,18 @@ export default function App() {
     audio.preload = 'auto'
     ;(audio as HTMLAudioElement & { playsInline?: boolean }).playsInline = true
     audio.load()
+  }, [])
+
+  useEffect(() => {
+    const images = PRELOAD_IMAGE_PATHS.map((path) => {
+      const image = new Image()
+      image.decoding = 'async'
+      image.src = path
+      return image
+    })
+    return () => {
+      images.length = 0
+    }
   }, [])
 
   useEffect(() => {
@@ -922,8 +959,8 @@ function pointerToDesignPoint(
 
 function CreditsModal({ onClose }: { onClose: () => void }) {
   return (
-    <div className="modal-overlay credits-modal" role="dialog" aria-modal="true" aria-label="Credits">
-      <div className="modal-card">
+    <div className="modal-overlay credits-modal" role="dialog" aria-modal="true" aria-label="Credits" onClick={onClose}>
+      <div className="modal-card" onClick={(event) => event.stopPropagation()}>
         <button className="modal-close" type="button" onClick={onClose} aria-label="Close">×</button>
         <a className="modal-title" href={gameConfig.credits.contestUrl} target="_blank" rel="noreferrer">{gameConfig.credits.contestTitle}</a>
         <p className="credits-copy">
@@ -976,8 +1013,8 @@ function ImageModal({
   title: string
 }) {
   return (
-    <div className={`modal-overlay ${className}`} role="dialog" aria-modal="true" aria-label={ariaLabel}>
-      <div className="modal-card">
+    <div className={`modal-overlay ${className}`} role="dialog" aria-modal="true" aria-label={ariaLabel} onClick={onClose}>
+      <div className="modal-card" onClick={(event) => event.stopPropagation()}>
         <button className="modal-close" type="button" onClick={onClose} aria-label="Close">×</button>
         <div className="modal-title">{title}</div>
         {subtitle ? <div className="modal-subtitle">{subtitle}</div> : null}
@@ -985,6 +1022,8 @@ function ImageModal({
           className="concept-image"
           src={gameConfig.assets.concept}
           alt={gameConfig.concept.alt}
+          decoding="async"
+          loading="eager"
           style={{
             '--concept-image-width': `${gameConfig.concept.imageWidth}px`,
             '--concept-image-max-height': `${gameConfig.concept.imageHeight}px`,
@@ -1171,9 +1210,34 @@ function toPercent(value: number, total: number): string {
   return `${(value / total) * 100}%`
 }
 
+function getEyecatAudioContext(): AudioContext | null {
+  const audioWindow = window as EyecatAudioWindow
+  const AudioContextConstructor = window.AudioContext ?? audioWindow.webkitAudioContext
+  if (!AudioContextConstructor) return null
+  const context = audioWindow.eyecatAudioContext ?? new AudioContextConstructor()
+  audioWindow.eyecatAudioContext = context
+  return context
+}
+
+function primeSfxContext(context: AudioContext): void {
+  const buffer = context.createBuffer(1, 1, Math.max(1, context.sampleRate))
+  const source = context.createBufferSource()
+  const gain = context.createGain()
+  gain.gain.setValueAtTime(0.0001, context.currentTime)
+  gain.gain.exponentialRampToValueAtTime(0.00001, context.currentTime + 0.02)
+  source.buffer = buffer
+  source.connect(gain).connect(context.destination)
+  source.start(context.currentTime)
+  source.stop(context.currentTime + 0.03)
+}
+
 function playSfx(type: 'coin' | 'key' | 'hit' | 'win' | 'gameover') {
-  const context = (window as Window & { eyecatAudioContext?: AudioContext }).eyecatAudioContext
+  const context = (window as EyecatAudioWindow).eyecatAudioContext
   if (!context) return
+  if (context.state === 'suspended') {
+    void context.resume().then(() => playSfx(type)).catch(() => undefined)
+    return
+  }
   const now = context.currentTime
   const profile = {
     coin: { frequency: 740, end: 980, duration: 0.08, type: 'sine' as OscillatorType },
