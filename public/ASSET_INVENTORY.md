@@ -1,0 +1,20 @@
+# Asset Inventory
+
+## Critical First Load
+
+- `backgrounds/lab-final-ruin.png` - ruin stage background and blurred page backdrop.
+- `characters/player-eye-cat-plain.png` - primary borderless Eyecat player art.
+- `characters/character-vacuum.png` - vacuum enemy art.
+- `characters/character-white-cat.png` - cat hostage art.
+- `characters/character-coin.png` - coin collectible art.
+
+## Audio
+
+- `audio/cassia-revenge-of-the-eyecat-remix.mp3` - background music, starts after player movement.
+
+## Optional Background Drafts
+
+- `backgrounds/lab-ruin.png`
+- `backgrounds/lab-glow.png`
+
+Keep raw/source artwork outside this browser-ready folder. This folder should contain only game-ready files.

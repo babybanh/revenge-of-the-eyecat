@@ -1,0 +1,42 @@
+import type { PacRescueSettings } from './types'
+
+export const defaultPacRescueSettings: PacRescueSettings = {
+  mazeColumns: 9,
+  mazeRows: 9,
+  cameraViewTiles: 0,
+  enemySkin: 'vacuum',
+  playerSkin: 'eye-cat-plain',
+  coinSkin: 'coin',
+  mazeFloor: 'transparent',
+  mazeWall: 'spotlight-cream',
+  stageBackground: 'lab-final-ruin',
+  stageBackgroundScale: 100,
+  boardOffsetX: 0,
+  boardOffsetY: 0,
+  playerSpeed: 3,
+  chaserSpeed: 1.1,
+  chaseRadius: 8,
+  chaserCount: 4,
+  keyCount: 4,
+  coinCount: 140,
+  powerPelletCount: 6,
+  requiredKeys: 4,
+  coinGoalPercent: 35,
+  frightDuration: 7,
+  chaseDuration: 14,
+  scatterDuration: 5,
+  rescueZoneSize: 1,
+  wanderTurnInterval: 0.75,
+}
+
+export const defaultPacRescueMap = [
+  '####.####',
+  '#K.....O#',
+  '#.#.#.#.#',
+  '#C..K..C#',
+  '...#H.#..',
+  '#.#...#.#',
+  '#K..#.#.#',
+  '#...P...#',
+  '####.####',
+].join('\n')
