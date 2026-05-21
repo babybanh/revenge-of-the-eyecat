@@ -576,16 +576,42 @@ a:focus-visible {
 .credits-modal .modal-card {
   width: min(500px, calc(100% - 36px));
   gap: 0;
+  padding: 28px 30px 26px;
+  color: var(--cocoa);
+  background:
+    radial-gradient(circle at 22% 14%, rgba(255, 255, 255, 0.9), transparent 30%),
+    linear-gradient(rgba(255, 250, 236, 0.98), rgba(255, 237, 217, 0.97));
+  box-shadow:
+    0 24px 48px rgba(74, 36, 24, 0.28),
+    inset 0 0 0 2px rgba(255, 229, 156, 0.42);
 }
 
 .credits-modal .modal-title {
-  margin: 8px auto 20px;
-  padding: 0;
+  max-width: 360px;
+  margin: 8px auto 22px;
+  padding: 0 40px;
+  color: #8f3c27;
+  font-size: clamp(18px, 3.5cqw, 25px);
+  line-height: 1.08;
+}
+
+.credits-modal .modal-close {
+  color: #fff8ea;
+  background: linear-gradient(#ea7655, #c84c37);
+  box-shadow: 0 3px 0 #8f3c27, 0 8px 14px rgba(97, 45, 52, 0.2);
 }
 
 .credits-copy {
-  margin: 18px auto 0;
+  margin: 16px auto 0;
   max-width: 400px;
+  color: var(--cocoa-soft);
+  font-size: clamp(12px, 2.1cqw, 15px);
+  line-height: 1.32;
+}
+
+.credits-copy a {
+  color: #c9562e;
+  font-size: clamp(16px, 2.6cqw, 19px);
 }
 
 .concept-modal .modal-card {
