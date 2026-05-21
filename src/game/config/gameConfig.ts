@@ -4,7 +4,7 @@ export const gameConfig = {
     startPrompt: 'Use the joystick or arrow keys to move Eyecat.',
     startHint: 'Move Eyecat with the joystick, arrow keys, or WASD. Collect coins and keys, then rescue the cat.',
     creditsLabel: 'Credits',
-    musicStartLabel: 'Start Music',
+    musicStartLabel: 'Music: On',
     musicOnLabel: 'Music: On',
     musicOffLabel: 'Music: Off',
   },
@@ -42,15 +42,15 @@ export const gameConfig = {
     playfield: { x: 96, y: 108, width: 528, height: 528 },
     bottomControls: { x: 0, y: 696, width: 720, height: 144 },
     prompt: { x: 360, y: 610, width: 500 },
-    eventPrompt: { x: 360, y: 666, width: 500 },
+    eventPrompt: { x: 360, y: 628, width: 460 },
     buttons: {
       credits: { x: 40, y: 716, width: 92, height: 44 },
-      music: { x: 152, y: 716, width: 104, height: 44 },
+      music: { x: 152, y: 716, width: 92, height: 44 },
     },
     joystick: { x: 500, y: 738, radius: 62 },
     startArt: {
-      eyecat: { x: 268, y: 390, size: 138 },
-      vacuum: { x: 452, y: 388, size: 88 },
+      eyecat: { x: 268, y: 390, size: 132 },
+      hostage: { x: 452, y: 390, size: 118 },
     },
   },
   storageKeys: {

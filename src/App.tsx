@@ -5,7 +5,7 @@ import { defaultPacRescueLevelMaps, defaultPacRescueSettings } from './game/pacr
 import { capMapTextCounts, mapCounts, parseMapText, rebalanceMapText, sanitizeSettings } from './game/pacrescue/map'
 import { createDelayedKeyState } from './game/pacrescue/objective'
 import { nextLevelIndex } from './game/pacrescue/progression'
-import type { MazeFloor, MazeWall, PacRescueSettings, RuntimeSnapshot } from './game/pacrescue/types'
+import type { InstructionPhase, MazeFloor, MazeWall, PacRescueSettings, RuntimeSnapshot } from './game/pacrescue/types'
 import { gameConfig } from './game/config/gameConfig'
 import { PacRescueScene, type JoystickInput } from './game/scenes/PacRescueScene'
 
@@ -14,6 +14,8 @@ const MUSIC_PATH = gameConfig.assets.music
 const HEART = '\u2665'
 const ZERO_INPUT: JoystickInput = { x: 0, y: 0 }
 const PHASER_WORLD_SIZE = 672
+const LEVEL_INSTRUCTION_DURATION = 4200
+const EVENT_INSTRUCTION_DURATION = 2200
 
 type MapPreset = {
   id: string
@@ -99,6 +101,8 @@ export default function App() {
   const [started, setStarted] = useState(false)
   const [levelPaused, setLevelPaused] = useState(false)
   const [instructionVisible, setInstructionVisible] = useState(false)
+  const [instructionText, setInstructionText] = useState('')
+  const [instructionPhase, setInstructionPhase] = useState<InstructionPhase>('find-key')
   const [restartToken, setRestartToken] = useState(0)
   const [musicEnabled, setMusicEnabled] = useState(true)
   const [musicStarted, setMusicStarted] = useState(false)
@@ -143,6 +147,21 @@ export default function App() {
     }
   }, [])
 
+  const showInstruction = useCallback((text: string, phase: InstructionPhase = 'find-key', duration = EVENT_INSTRUCTION_DURATION) => {
+    setInstructionText(text)
+    setInstructionPhase(phase)
+    setInstructionVisible(true)
+    if (instructionTimer.current) {
+      window.clearTimeout(instructionTimer.current)
+    }
+    instructionTimer.current = window.setTimeout(() => setInstructionVisible(false), duration)
+  }, [])
+
+  const resumeLevelFromPause = useCallback(() => {
+    setLevelPaused(false)
+    showInstruction(startLevelInstruction(runtime), 'find-key', LEVEL_INSTRUCTION_DURATION)
+  }, [runtime, showInstruction])
+
   const startMusicFromMovement = useCallback(() => {
     const audio = musicRef.current
     if (!audio || !musicEnabledRef.current || musicStartedRef.current) return
@@ -157,12 +176,13 @@ export default function App() {
     unlockAudio()
     previousRuntime.current = null
     joystickRef.current = { ...initialInput }
-    setRuntime(createInitialRuntime(mapText, settings))
+    const initialRuntime = createInitialRuntime(mapText, settings)
+    setRuntime(initialRuntime)
     setStarted(true)
     setLevelPaused(false)
-    setInstructionVisible(false)
+    showInstruction(startLevelInstruction(initialRuntime), 'find-key', LEVEL_INSTRUCTION_DURATION)
     setRestartToken((token) => token + 1)
-  }, [mapText, settings, unlockAudio])
+  }, [mapText, settings, showInstruction, unlockAudio])
 
   useEffect(() => {
     const image = new Image()
@@ -193,7 +213,7 @@ export default function App() {
           startGame(inputFromKey(event.key))
         } else if (started && levelPaused && !showCredits && !showConcept) {
           event.preventDefault()
-          setLevelPaused(false)
+          resumeLevelFromPause()
         }
       }
     }
@@ -211,7 +231,7 @@ export default function App() {
       window.removeEventListener('keydown', handleKey)
       window.removeEventListener('keyup', handleKeyUp)
     }
-  }, [levelPaused, started, showCredits, showConcept, startGame, startMusicFromMovement, unlockAudio])
+  }, [levelPaused, resumeLevelFromPause, started, showCredits, showConcept, startGame, startMusicFromMovement, unlockAudio])
 
   useEffect(() => {
     if (!started || !hostRef.current) return
@@ -262,16 +282,18 @@ export default function App() {
         y: previous.playerScreenPosition?.y ?? runtime.playerScreenPosition?.y,
       }))
     }
-    if (runtime.status === 'won' && previous.status !== 'won') playSfx('win')
+    if (runtime.status === 'won' && previous.status !== 'won') {
+      playSfx('win')
+      setInstructionVisible(false)
+    }
     if (runtime.status === 'gameover' && previous.status !== 'gameover') playSfx('gameover')
     if (started && !levelPaused && shouldShowInstructionNotice(previous, runtime)) {
-      setInstructionVisible(true)
-      if (instructionTimer.current) {
-        window.clearTimeout(instructionTimer.current)
+      const nextInstruction = compactInstruction(runtime)
+      if (nextInstruction) {
+        showInstruction(nextInstruction, runtime.instructionPhase)
       }
-      instructionTimer.current = window.setTimeout(() => setInstructionVisible(false), 2200)
     }
-  }, [runtime, audioUnlocked, levelPaused, started])
+  }, [runtime, audioUnlocked, levelPaused, showInstruction, started])
 
   const switchPreset = useCallback((index: number, shouldStart: boolean, shouldPause = false) => {
     const preset = mapPresets[index] ?? mapPresets[0]
@@ -284,6 +306,7 @@ export default function App() {
     setStarted(shouldStart)
     setLevelPaused(shouldStart && shouldPause)
     setInstructionVisible(false)
+    setInstructionText('')
     setHeartLossPopup(null)
     setRestartToken((token) => token + 1)
   }, [])
@@ -339,7 +362,7 @@ export default function App() {
         keyboardStartRef.current = false
         startGame(input)
       } else if (started && levelPaused && !showCredits && !showConcept) {
-        setLevelPaused(false)
+        resumeLevelFromPause()
       }
     }
   }
@@ -365,7 +388,9 @@ export default function App() {
             Keys: {runtime.keysCollected}/{runtime.requiredKeys}
           </div>
           <div className="heart-strip" aria-label={`${runtime.lives} of ${runtime.maxLives} hearts left`}>
-            {HEART.repeat(Math.max(0, runtime.lives))}
+            {Array.from({ length: Math.max(0, runtime.lives) }, (_, index) => (
+              <span className="heart-icon" key={index}>{HEART}</span>
+            ))}
           </div>
         </header>
 
@@ -381,12 +406,12 @@ export default function App() {
         <footer className="bottom-controls" style={rectStyle(gameConfig.layout.bottomControls)} aria-hidden="true" />
         {started && levelPaused ? (
           <div className="level-ready-prompt" style={centeredTextStyle(gameConfig.layout.eventPrompt)}>
-            <strong>Find the keys and rescue the cat.</strong>
+            <strong>{startLevelInstruction(runtime)}</strong>
           </div>
         ) : null}
-        {started && instructionVisible && !levelPaused ? (
-          <div className={`instruction-panel phase-${runtime.instructionPhase}`} style={centeredTextStyle(gameConfig.layout.eventPrompt)}>
-            <span>{compactInstruction(runtime)}</span>
+        {started && instructionText && !levelPaused ? (
+          <div className={`instruction-panel phase-${instructionPhase} ${instructionVisible ? 'is-visible' : ''}`} style={centeredTextStyle(gameConfig.layout.eventPrompt)} aria-hidden={!instructionVisible}>
+            <span>{instructionText}</span>
           </div>
         ) : null}
         <div className="button-row">
@@ -401,7 +426,7 @@ export default function App() {
           <div className="start-overlay" aria-hidden="true">
             <span className="start-blur-layer" />
             <img className="start-eyecat" style={squareCenterStyle(gameConfig.layout.startArt.eyecat)} src={gameConfig.assets.player} alt="" />
-            <img className="start-vacuum" style={squareCenterStyle(gameConfig.layout.startArt.vacuum)} src={gameConfig.assets.vacuum} alt="" />
+            <img className="start-hostage" style={squareCenterStyle(gameConfig.layout.startArt.hostage)} src={gameConfig.assets.hostage} alt="" />
             <span className="start-control-prompt" style={centeredTextStyle(gameConfig.layout.prompt)}>{gameConfig.copy.startPrompt}</span>
           </div>
         ) : null}
@@ -515,7 +540,7 @@ function MoveJoystick({ disabled, intro, onChange, style }: { disabled: boolean;
         ref={pad}
         role="presentation"
       >
-        <div className="gesture-joystick-stick" style={{ transform: `translate(${stick.x * 30}px, ${stick.y * 30}px)` }} />
+        <div className="gesture-joystick-stick" style={intro ? undefined : { transform: `translate(${stick.x * 30}px, ${stick.y * 30}px)` }} />
       </div>
     </div>
   )
@@ -648,6 +673,7 @@ function inputFromKey(key: string): JoystickInput {
 }
 
 function shouldShowInstructionNotice(previous: RuntimeSnapshot, current: RuntimeSnapshot): boolean {
+  if (current.status === 'won') return false
   return current.keysCollected > previous.keysCollected
     || current.lives < previous.lives
     || current.frightRemaining > previous.frightRemaining
@@ -658,13 +684,19 @@ function shouldShowInstructionNotice(previous: RuntimeSnapshot, current: Runtime
 
 function compactInstruction(runtime: RuntimeSnapshot): string {
   const missingKeys = Math.max(0, runtime.requiredKeys - runtime.keysCollected)
-  if (runtime.status === 'won') return 'Cat rescued.'
+  if (runtime.status === 'won') return ''
   if (runtime.status === 'gameover') return 'Back to level 1.'
-  if (runtime.frightRemaining > 0) return 'Eyecat is invincible.'
   if (runtime.lives < runtime.maxLives && runtime.message.toLowerCase().includes('heart')) return 'Caught.'
   if (runtime.keysCollected >= runtime.requiredKeys) return 'Rescue the cat.'
+  if (runtime.frightRemaining > 0) return 'Eyecat is invincible.'
   if (runtime.instructionPhase === 'key-appeared' || missingKeys <= 1) return 'Find the missing key.'
   return 'Find the keys.'
+}
+
+function startLevelInstruction(runtime: RuntimeSnapshot): string {
+  return runtime.requiredKeys <= 1
+    ? 'Find the key and rescue the cat.'
+    : 'Find the keys and rescue the cat.'
 }
 
 function rectStyle(rect: { x: number; y: number; width: number; height: number }): CSSProperties {
