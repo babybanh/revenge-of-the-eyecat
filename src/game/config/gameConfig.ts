@@ -15,7 +15,15 @@ export const gameConfig = {
     vacuum: '/characters/character-vacuum.png',
     hostage: '/characters/character-white-cat.png',
     coin: '/characters/character-coin.png',
+    concept: '/concept/cassia-revenge-of-the-eyecat.jpg',
     music: '/audio/cassia-revenge-of-the-eyecat-remix.mp3',
+  },
+  concept: {
+    title: 'Original Game Idea',
+    subtitle: "Cassia's Revenge of the Eyecat concept",
+    alt: "Cassia's Revenge of the Eyecat concept art",
+    imageWidth: 430,
+    imageHeight: 392,
   },
   credits: {
     studentName: 'Cassia',
@@ -23,7 +31,6 @@ export const gameConfig = {
     contestUrl: 'https://youtube.com/playlist?list=PLhhleIn9mEjhNAztK55u86m13lu6xpqoM&si=9kGz8asDtaMO3Wy8',
     studentCredit: 'Original music and characters by Cassia',
     youtubeUrl: 'https://youtu.be/sr8MUHoempk?si=fSSh9eexR-s-zNS8',
-    youtubeEmbedUrl: 'https://www.youtube.com/embed/sr8MUHoempk',
     designerName: 'Le Binh Anh Nguyen',
     designerEmail: 'binhanhpiano96@gmail.com',
     developerCredit: 'Game design and development by Le Binh Anh Nguyen and Codex',

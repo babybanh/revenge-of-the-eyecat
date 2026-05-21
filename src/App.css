@@ -510,6 +510,15 @@ a:focus-visible {
   text-decoration: none;
 }
 
+.modal-subtitle {
+  max-width: 390px;
+  margin-top: -2px;
+  color: #8d3b34;
+  font-size: clamp(13px, 2.15cqw, 16px);
+  font-weight: 750;
+  line-height: 1.18;
+}
+
 .credits-copy,
 .modal-copy {
   margin: 0;
@@ -538,48 +547,18 @@ a:focus-visible {
   text-decoration: none;
 }
 
-.credits-video {
-  width: min(100%, 330px);
-  aspect-ratio: 16 / 9;
-  overflow: hidden;
-  border: 2px solid rgba(73, 49, 39, 0.12);
-  border-radius: 14px;
-  background: #111827;
-  box-shadow: 0 10px 28px rgba(4, 7, 18, 0.14);
-}
-
-.credits-video iframe {
-  display: block;
-  width: 100%;
-  height: 100%;
-  border: 0;
-}
-
-.credits-playlist-link {
-  color: #c9434f;
-  font-size: clamp(12px, 1.95cqw, 14px);
-  font-weight: 650;
-  text-decoration: underline;
-  text-underline-offset: 3px;
-}
-
 .concept-modal .modal-card {
-  width: min(430px, calc(100% - 36px));
+  width: min(500px, calc(100% - 36px));
+  gap: 10px;
 }
 
-.concept-art-row {
-  display: flex;
-  justify-content: center;
-  align-items: end;
-  gap: 18px;
-  width: 100%;
-}
-
-.concept-art-row img {
-  width: clamp(68px, 18cqw, 112px);
-  height: clamp(68px, 18cqw, 112px);
+.concept-image {
+  display: block;
+  width: min(var(--concept-image-width, 430px), 100%);
+  max-height: min(var(--concept-image-max-height, 392px), 52vh);
   object-fit: contain;
-  filter: drop-shadow(0 8px 10px rgba(0, 0, 0, 0.22));
+  border-radius: 18px;
+  box-shadow: 0 14px 28px rgba(73, 49, 39, 0.16);
 }
 
 .dev-panel {
@@ -766,11 +745,12 @@ a:focus-visible {
     padding: 22px 18px 20px;
   }
 
-  .credits-video {
-    width: min(100%, 260px);
+  .modal-subtitle {
+    font-size: 13px;
   }
 
-  .concept-art-row {
-    gap: 10px;
+  .concept-image {
+    width: min(var(--concept-image-width, 300px), 100%);
+    max-height: min(var(--concept-image-max-height, 430px), 58vh);
   }
 }

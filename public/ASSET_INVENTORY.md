@@ -6,6 +6,7 @@
 - `characters/player-eye-cat-plain.png` - primary borderless Eyecat player art.
 - `characters/character-vacuum.png` - vacuum enemy art.
 - `characters/character-white-cat.png` - cat hostage art.
+- `concept/cassia-revenge-of-the-eyecat.jpg` - Cassia's original concept art for the title panel.
 - Coins render as yellow dots in Phaser; no image is needed for the normal coin pass.
 
 ## Audio

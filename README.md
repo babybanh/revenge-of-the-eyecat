@@ -51,6 +51,7 @@ Some internal test names still use generic Pacman terms like ghost/chaser becaus
 - Losing all three hearts returns to Level 1 automatically.
 - Coins render as simple yellow dots by default; the old coin image is only kept as an optional tuning asset.
 - Music starts from a real movement gesture.
+- Title-click concept panel uses Cassia's original Revenge of the Eyecat artwork.
 - Event SFX are generated in-browser for this first shell.
 - Credits use Cassia as the student credit and embed the current theme video: <https://youtu.be/sr8MUHoempk?si=fSSh9eexR-s-zNS8>
 - GitHub and Vercel setup are intentionally left for the next phase after local QA.

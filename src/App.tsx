@@ -535,20 +535,6 @@ function CreditsModal({ onClose }: { onClose: () => void }) {
           <span>Game design and development by</span>
           <a href={`mailto:${gameConfig.credits.designerEmail}`}>{gameConfig.credits.designerName}</a>
         </p>
-        <div className="credits-video">
-          <iframe
-            title="Cassia theme video"
-            src={gameConfig.credits.youtubeEmbedUrl}
-            allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
-            allowFullScreen
-          />
-        </div>
-        <a className="credits-playlist-link" href={gameConfig.credits.youtubeUrl} target="_blank" rel="noreferrer">
-          Cassia theme on YouTube
-        </a>
-        <a className="credits-playlist-link" href={gameConfig.credits.contestUrl} target="_blank" rel="noreferrer">
-          PIK Composition Contest playlist
-        </a>
       </div>
     </div>
   )
@@ -559,13 +545,17 @@ function ConceptModal({ onClose }: { onClose: () => void }) {
     <div className="modal-overlay concept-modal" role="dialog" aria-modal="true" aria-label="Original game idea">
       <div className="modal-card">
         <button className="modal-close" type="button" onClick={onClose} aria-label="Close">×</button>
-        <div className="modal-title">Original Game Idea</div>
-        <p className="modal-copy">Eyecat slips through the ruin, collects enough power, and rescues the captured cat before the vacuum patrols close in.</p>
-        <div className="concept-art-row">
-          <img src={gameConfig.assets.player} alt="Borderless Eyecat" />
-          <img src={gameConfig.assets.vacuum} alt="Vacuum enemy" />
-          <img src={gameConfig.assets.hostage} alt="Cat hostage" />
-        </div>
+        <div className="modal-title">{gameConfig.concept.title}</div>
+        <div className="modal-subtitle">{gameConfig.concept.subtitle}</div>
+        <img
+          className="concept-image"
+          src={gameConfig.assets.concept}
+          alt={gameConfig.concept.alt}
+          style={{
+            '--concept-image-width': `${gameConfig.concept.imageWidth}px`,
+            '--concept-image-max-height': `${gameConfig.concept.imageHeight}px`,
+          } as CSSProperties}
+        />
       </div>
     </div>
   )
