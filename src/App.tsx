@@ -14,7 +14,7 @@ const MUSIC_PATH = gameConfig.assets.music
 const HEART = '\u2665'
 const ZERO_INPUT: JoystickInput = { x: 0, y: 0 }
 const PHASER_WORLD_SIZE = 672
-const LEVEL_INSTRUCTION_DURATION = 4200
+const LEVEL_INSTRUCTION_DURATION = 2600
 const EVENT_INSTRUCTION_DURATION = 2200
 
 type MapPreset = {
@@ -694,9 +694,7 @@ function compactInstruction(runtime: RuntimeSnapshot): string {
 }
 
 function startLevelInstruction(runtime: RuntimeSnapshot): string {
-  return runtime.requiredKeys <= 1
-    ? 'Find the key and rescue the cat.'
-    : 'Find the keys and rescue the cat.'
+  return runtime.requiredKeys <= 1 ? 'Find the key.' : 'Find the keys.'
 }
 
 function rectStyle(rect: { x: number; y: number; width: number; height: number }): CSSProperties {
