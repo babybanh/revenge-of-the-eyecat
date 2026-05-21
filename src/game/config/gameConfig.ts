@@ -9,8 +9,8 @@ export const gameConfig = {
     musicOffLabel: 'Music: Off',
   },
   assets: {
-    background: '/backgrounds/background-ruin3.png',
-    optionalBackgrounds: ['/backgrounds/lab-final-ruin-2.png', '/backgrounds/lab-final-ruin.png', '/backgrounds/lab-ruin.png', '/backgrounds/lab-glow.png'],
+    background: '/backgrounds/lab-final-ruin-2.png',
+    optionalBackgrounds: ['/backgrounds/background-ruin3.png', '/backgrounds/lab-final-ruin.png', '/backgrounds/lab-ruin.png', '/backgrounds/lab-glow.png'],
     player: '/characters/player-eye-cat-plain.png',
     vacuum: '/characters/character-vacuum.png',
     hostage: '/characters/character-white-cat.png',

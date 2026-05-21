@@ -668,7 +668,7 @@ export class PacRescueScene extends Phaser.Scene {
       const pulse = this.elapsed % 5
       const wiggle = pulse < 0.75 ? Math.sin(pulse * Math.PI * 8) : 0
       const bob = pulse < 0.75 ? Math.sin(pulse * Math.PI * 4) : 0
-      const width = this.boardRect.tile * 0.58
+      const width = this.boardRect.tile * 0.68
       sprite
         .setTexture(textureKey)
         .setVisible(true)
@@ -781,14 +781,14 @@ export class PacRescueScene extends Phaser.Scene {
       const sprite = this.chaserSprites[index] ?? this.add.image(0, 0, VACUUM_ENEMY_KEY).setOrigin(0.5).setDepth(2)
       this.chaserSprites[index] = sprite
 
-      const size = this.boardRect.tile * (chaser.inactive > 0 ? 0.66 : 0.86)
+      const size = this.boardRect.tile * (chaser.inactive > 0 ? 0.98 : 1.3)
       const movingUp = chaser.direction.y < 0
       const respawnFlicker = chaser.inactive > 0 && Math.floor(this.elapsed * 4 + index) % 2 === 0
       sprite
         .setTexture(VACUUM_ENEMY_KEY)
         .setVisible(true)
         .setPosition(this.cx(position.x), this.cy(position.y))
-        .setDisplaySize(size, size * 0.91)
+        .setDisplaySize(size, size)
         .setAlpha(chaser.inactive > 0 ? (respawnFlicker ? 0.28 : 0.72) : 1)
         .setFlipX(chaser.direction.x < 0 || movingUp)
         .setFlipY(movingUp)
