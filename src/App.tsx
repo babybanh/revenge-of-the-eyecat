@@ -352,13 +352,7 @@ export default function App() {
         <header className="game-topbar" style={rectStyle(gameConfig.layout.topBar)}>
           <button className="title-button" type="button" onClick={() => setShowConcept(true)} title="View original game idea">
             <span>{gameConfig.copy.title}</span>
-            <small>{activePreset.name}</small>
           </button>
-          <div className="score-strip" aria-live="polite">
-            <span>Coins {runtime.coinsCollected}/{runtime.coinGoal}</span>
-            <span>Keys {runtime.keysCollected}/{runtime.requiredKeys}</span>
-            <span>Power {runtime.frightRemaining}s</span>
-          </div>
           <div className="heart-strip" aria-label={`${runtime.lives} of ${runtime.maxLives} hearts left`}>
             {Array.from({ length: runtime.maxLives }, (_, index) => (
               <span className={index < runtime.lives ? 'full' : ''} key={index}>{HEART}</span>
@@ -384,6 +378,12 @@ export default function App() {
         </section>
 
         <footer className="bottom-controls" style={rectStyle(gameConfig.layout.bottomControls)} aria-hidden="true" />
+        {started && levelPaused ? (
+          <div className="level-ready-prompt" style={centeredTextStyle(gameConfig.layout.eventPrompt)}>
+            <strong>Use the joystick or arrow keys to move Eyecat.</strong>
+            <span>{activePreset.name}</span>
+          </div>
+        ) : null}
         {started && instructionVisible && !levelPaused ? (
           <div className={`instruction-panel phase-${runtime.instructionPhase}`} style={centeredTextStyle(gameConfig.layout.eventPrompt)}>
             <span>{compactInstruction(runtime)}</span>

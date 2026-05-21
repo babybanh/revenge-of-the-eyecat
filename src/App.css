@@ -2,15 +2,20 @@
   --ink: #fff7dd;
   --paper: rgba(255, 250, 237, 0.92);
   --paper-strong: rgba(255, 252, 239, 0.98);
-  --cocoa: #263042;
+  --cream: #fff1dc;
+  --cream-soft: rgba(255, 241, 220, 0.78);
+  --cream-glass: rgba(255, 238, 211, 0.58);
+  --cocoa: #35241f;
   --cocoa-soft: #5e4630;
-  --gold: #ffd66e;
-  --gold-strong: #f2b94b;
-  --teal: #57d5d2;
-  --rose: #ff8cb9;
+  --gold: #f7dfad;
+  --gold-strong: #e8c276;
+  --button-shadow: #9f7242;
+  --teal: #8ed8d1;
+  --rose: #c9434f;
   --red: #c4453f;
   --violet: #6a4dd8;
   --shadow: rgba(4, 7, 18, 0.32);
+  --warm-shadow: rgba(97, 45, 52, 0.22);
   color: var(--ink);
   font-family: ui-rounded, "Trebuchet MS", "Avenir Next", Arial, sans-serif;
 }
@@ -60,16 +65,16 @@ button {
   border: 0;
   border-radius: 22px;
   color: var(--cocoa);
-  background: linear-gradient(#ffe8a6, var(--gold-strong));
-  box-shadow: 0 6px 0 #965d24, 0 12px 22px rgba(5, 8, 18, 0.22);
+  background: linear-gradient(#fff7e8, var(--gold));
+  box-shadow: 0 6px 0 var(--button-shadow), 0 12px 22px rgba(5, 8, 18, 0.18);
   cursor: pointer;
   font: inherit;
-  font-weight: 750;
+  font-weight: 650;
 }
 
 button:active {
   transform: translateY(3px);
-  box-shadow: 0 3px 0 #965d24, 0 8px 16px rgba(5, 8, 18, 0.2);
+  box-shadow: 0 3px 0 var(--button-shadow), 0 8px 16px rgba(5, 8, 18, 0.16);
 }
 
 button:focus-visible,
@@ -113,15 +118,15 @@ a:focus-visible {
   position: absolute;
   z-index: 45;
   display: grid;
-  grid-template-columns: minmax(0, 1fr) auto auto;
-  gap: 10px;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 12px;
   align-items: center;
   padding: 0 16px;
-  border: 3px solid rgba(255, 229, 156, 0.58);
+  border: 3px solid rgba(255, 229, 156, 0.82);
   border-radius: 28px;
-  color: #20283a;
-  background: rgba(255, 250, 234, 0.82);
-  box-shadow: 0 10px 24px var(--shadow);
+  color: var(--cocoa);
+  background: var(--cream-soft);
+  box-shadow: 0 10px 24px var(--warm-shadow);
   backdrop-filter: blur(5px);
 }
 
@@ -131,10 +136,11 @@ a:focus-visible {
   gap: 2px;
   justify-items: start;
   padding: 0;
-  color: #171f31;
+  color: var(--cocoa);
   background: transparent;
   box-shadow: none;
   text-align: left;
+  text-shadow: 0 2px 0 rgba(255, 239, 211, 0.7), 0 4px 10px rgba(97, 45, 52, 0.14);
 }
 
 .title-button:active {
@@ -147,41 +153,21 @@ a:focus-visible {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  font-size: clamp(11px, 2.9cqw, 21px);
+  font-size: clamp(13px, 3.05cqw, 23px);
   line-height: 1;
-}
-
-.title-button small {
-  color: #6b4a22;
-  font-size: clamp(8px, 1.65cqw, 12px);
-  line-height: 1;
-}
-
-.score-strip {
-  display: flex;
-  justify-content: center;
-  gap: 5px;
-  font-size: clamp(8px, 1.7cqw, 13px);
-  font-weight: 850;
-}
-
-.score-strip span {
-  padding: 3px 6px;
-  border-radius: 8px;
-  color: #20283a;
-  background: rgba(255, 255, 255, 0.46);
-  white-space: nowrap;
 }
 
 .heart-strip {
-  width: 76px;
+  width: 78px;
   display: flex;
   justify-content: end;
-  gap: 1px;
-  color: rgba(255, 140, 185, 0.28);
-  font-size: clamp(13px, 3.4cqw, 25px);
+  gap: 2px;
+  color: rgba(151, 95, 68, 0.3);
+  font-size: clamp(15px, 3.3cqw, 24px);
+  font-weight: 750;
   line-height: 1;
-  text-shadow: 0 2px 0 rgba(255, 255, 255, 0.62);
+  letter-spacing: 0;
+  text-shadow: 0 2px 0 rgba(255, 239, 211, 0.7);
 }
 
 .heart-strip .full {
@@ -246,26 +232,30 @@ a:focus-visible {
 }
 
 .instruction-panel,
+.level-ready-prompt,
 .start-control-prompt {
   position: absolute;
   z-index: 46;
   transform: translate(-50%, -50%);
   padding: 9px 15px;
-  border: 3px solid rgba(255, 214, 110, 0.94);
+  border: 3px solid rgba(255, 229, 156, 0.95);
   border-radius: 18px;
   color: var(--cocoa);
-  background: var(--paper);
-  box-shadow: 0 8px 22px var(--shadow);
+  background: var(--cream-soft);
+  box-shadow: 0 8px 22px var(--warm-shadow);
   text-align: center;
   pointer-events: none;
 }
 
-.instruction-panel {
+.instruction-panel,
+.level-ready-prompt {
   display: block;
 }
 
 .instruction-panel strong,
 .instruction-panel span,
+.level-ready-prompt strong,
+.level-ready-prompt span,
 .start-control-prompt {
   max-width: 100%;
   overflow-wrap: anywhere;
@@ -278,10 +268,29 @@ a:focus-visible {
 }
 
 .instruction-panel span {
-  color: #435061;
+  color: var(--cocoa-soft);
   font-size: clamp(10px, 2cqw, 14px);
   font-weight: 750;
   line-height: 1.1;
+}
+
+.level-ready-prompt strong,
+.level-ready-prompt span {
+  display: block;
+}
+
+.level-ready-prompt strong {
+  color: var(--cocoa);
+  font-size: clamp(10px, 2cqw, 14px);
+  line-height: 1.15;
+}
+
+.level-ready-prompt span {
+  margin-top: 2px;
+  color: #8d3b34;
+  font-size: clamp(9px, 1.7cqw, 12px);
+  font-weight: 750;
+  line-height: 1;
 }
 
 .instruction-panel.phase-collect-coins strong,
@@ -315,8 +324,8 @@ a:focus-visible {
 }
 
 .music-button.active {
-  background: linear-gradient(#dffcfb, #64dad4);
-  box-shadow: 0 6px 0 #27716e, 0 12px 22px rgba(5, 8, 18, 0.2);
+  background: linear-gradient(#fff7e8, var(--gold));
+  box-shadow: 0 6px 0 var(--button-shadow), 0 12px 22px rgba(5, 8, 18, 0.18);
 }
 
 .joystick-wrap {
@@ -331,10 +340,10 @@ a:focus-visible {
   position: relative;
   width: 100%;
   height: 100%;
-  border: 5px solid rgba(255, 247, 221, 0.36);
+  border: 5px solid rgba(53, 36, 31, 0.28);
   border-radius: 50%;
-  background: rgba(17, 24, 39, 0.24);
-  box-shadow: inset 0 0 0 2px rgba(17, 24, 39, 0.16);
+  background: var(--cream-glass);
+  box-shadow: inset 0 0 0 2px rgba(255, 247, 221, 0.35);
   cursor: grab;
   touch-action: none;
 }
@@ -352,10 +361,10 @@ a:focus-visible {
   height: 44%;
   margin-left: -22%;
   margin-top: -22%;
-  border: 4px solid rgba(255, 247, 221, 0.52);
+  border: 4px solid rgba(53, 36, 31, 0.36);
   border-radius: 50%;
-  background: linear-gradient(#81f4ef, #4fbbb8);
-  box-shadow: 0 7px 0 rgba(28, 105, 102, 0.72), 0 14px 24px rgba(5, 8, 18, 0.26);
+  background: linear-gradient(#fff7e8, var(--gold));
+  box-shadow: 0 6px 0 rgba(159, 114, 66, 0.66), 0 14px 24px rgba(5, 8, 18, 0.2);
 }
 
 .start-overlay {
@@ -723,16 +732,8 @@ a:focus-visible {
 }
 
 @media (max-width: 560px) {
-  .score-strip {
-    gap: 3px;
-  }
-
-  .score-strip span {
-    padding: 2px 4px;
-  }
-
   .heart-strip {
-    width: 48px;
+    width: 58px;
   }
 
   .modal-overlay {
