@@ -19,6 +19,7 @@ const EVENT_INSTRUCTION_DURATION = 2200
 const LEVEL_INSTRUCTION_DELAY = 1800
 const KEY_REMINDER_FIRST_MS = 5000
 const KEY_REMINDER_REPEAT_MS = 10000
+const POWER_INSTRUCTION_BUFFER_MS = 200
 const KEYBOARD_JOYSTICK_HIDE_MS = 1800
 
 type MapPreset = {
@@ -96,12 +97,14 @@ export default function App() {
   const joystickRef = useRef<JoystickInput>({ x: 0, y: 0 })
   const levelPausedRef = useRef(false)
   const keyboardStartRef = useRef(false)
+  const runtimeRef = useRef<RuntimeSnapshot | null>(null)
   const previousRuntime = useRef<RuntimeSnapshot | null>(null)
   const instructionTimer = useRef<number | undefined>(undefined)
   const delayedInstructionTimer = useRef<number | undefined>(undefined)
   const keyReminderTimer = useRef<number | undefined>(undefined)
   const keyReminderInterval = useRef<number | undefined>(undefined)
   const keyboardJoystickTimer = useRef<number | undefined>(undefined)
+  const pendingAfterPowerInstruction = useRef<{ text: string; phase: InstructionPhase } | null>(null)
   const [activeIndex, setActiveIndex] = useState(0)
   const [mapText, setMapText] = useState(mapPresets[0].mapText)
   const [settings, setSettings] = useState(mapPresets[0].settings)
@@ -150,6 +153,10 @@ export default function App() {
     levelPausedRef.current = levelPaused
   }, [levelPaused])
 
+  useEffect(() => {
+    runtimeRef.current = runtime
+  }, [runtime])
+
   useEffect(() => () => {
     if (instructionTimer.current) {
       window.clearTimeout(instructionTimer.current)
@@ -196,13 +203,25 @@ export default function App() {
   const scheduleKeyReminder = useCallback((snapshot: RuntimeSnapshot, delay = KEY_REMINDER_FIRST_MS) => {
     clearKeyReminder()
     if (snapshot.status !== 'playing' || snapshot.keysCollected >= snapshot.requiredKeys) return
-    keyReminderTimer.current = window.setTimeout(() => {
+    const showReminderIfAllowed = () => {
+      const current = runtimeRef.current ?? snapshot
+      if (current.status !== 'playing' || current.keysCollected >= current.requiredKeys) return
+      if (current.frightRemaining > 0) {
+        keyReminderTimer.current = window.setTimeout(
+          showReminderIfAllowed,
+          current.frightRemaining * 1000 + POWER_INSTRUCTION_BUFFER_MS,
+        )
+        return
+      }
       keyReminderTimer.current = undefined
-      showInstruction(startLevelInstruction(snapshot), 'find-key', LEVEL_INSTRUCTION_DURATION)
+      showInstruction(startLevelInstruction(current), 'find-key', LEVEL_INSTRUCTION_DURATION)
       keyReminderInterval.current = window.setInterval(() => {
-        showInstruction(startLevelInstruction(snapshot), 'find-key', LEVEL_INSTRUCTION_DURATION)
+        const latest = runtimeRef.current ?? current
+        if (latest.status !== 'playing' || latest.keysCollected >= latest.requiredKeys || latest.frightRemaining > 0) return
+        showInstruction(startLevelInstruction(latest), 'find-key', LEVEL_INSTRUCTION_DURATION)
       }, KEY_REMINDER_REPEAT_MS)
-    }, delay)
+    }
+    keyReminderTimer.current = window.setTimeout(showReminderIfAllowed, delay)
   }, [clearKeyReminder, showInstruction])
 
   const showLevelInstructionSoon = useCallback((snapshot: RuntimeSnapshot) => {
@@ -369,9 +388,28 @@ export default function App() {
     if (runtime.keysCollected > previous.keysCollected) {
       scheduleKeyReminder(runtime)
     }
+    if (previous.frightRemaining > 0 && runtime.frightRemaining <= 0 && pendingAfterPowerInstruction.current) {
+      const pending = pendingAfterPowerInstruction.current
+      pendingAfterPowerInstruction.current = null
+      if (started && !levelPaused && runtime.status === 'playing') {
+        showInstruction(pending.text, pending.phase)
+      }
+      return
+    }
     if (started && !levelPaused && shouldShowInstructionNotice(previous, runtime)) {
       const nextInstruction = compactInstruction(runtime)
       if (nextInstruction) {
+        if (runtime.frightRemaining > 0 && nextInstruction === 'Eyecat is invincible.') {
+          const afterPower = instructionAfterPower(runtime)
+          pendingAfterPowerInstruction.current = afterPower ? { text: afterPower, phase: runtime.instructionPhase } : null
+          if (runtime.frightRemaining <= previous.frightRemaining) return
+          showInstruction(
+            nextInstruction,
+            runtime.instructionPhase,
+            runtime.frightRemaining * 1000 + POWER_INSTRUCTION_BUFFER_MS,
+          )
+          return
+        }
         showInstruction(nextInstruction, runtime.instructionPhase)
       }
     }
@@ -381,6 +419,7 @@ export default function App() {
     const preset = mapPresets[index] ?? mapPresets[0]
     joystickRef.current = ZERO_INPUT
     previousRuntime.current = null
+    pendingAfterPowerInstruction.current = null
     clearKeyReminder()
     setActiveIndex(index)
     setMapText(preset.mapText)
@@ -836,6 +875,14 @@ function compactInstruction(runtime: RuntimeSnapshot): string {
   if (runtime.frightRemaining > 0) return 'Eyecat is invincible.'
   if (runtime.instructionPhase === 'key-appeared' || missingKeys <= 1) return 'Find the missing key.'
   return 'Find the keys.'
+}
+
+function instructionAfterPower(runtime: RuntimeSnapshot): string {
+  const missingKeys = Math.max(0, runtime.requiredKeys - runtime.keysCollected)
+  if (runtime.status !== 'playing') return ''
+  if (runtime.keysCollected >= runtime.requiredKeys) return 'Rescue the cat.'
+  if (runtime.instructionPhase === 'key-appeared' || missingKeys <= 1) return 'Find the missing key.'
+  return ''
 }
 
 function startLevelInstruction(runtime: RuntimeSnapshot): string {
