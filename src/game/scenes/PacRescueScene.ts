@@ -833,7 +833,7 @@ export class PacRescueScene extends Phaser.Scene {
 
   private drawPlayer(g: Phaser.GameObjects.Graphics): void {
     if (this.settings.playerSkin !== 'classic' && this.textures.exists(this.eyeCatTextureKey())) {
-      this.drawEyeCatPlayer()
+      this.drawEyeCatPlayer(g)
       return
     }
 
@@ -844,6 +844,7 @@ export class PacRescueScene extends Phaser.Scene {
     const radius = this.boardRect.tile * 0.36
     const mouth = Math.abs(Math.sin(this.elapsed * 9)) * 0.28 + 0.16
     const alpha = this.invincibleRemaining > 0 && Math.floor(this.elapsed * 12) % 2 === 0 ? 0.38 : 1
+    this.drawPowerHalo(g, x, y, this.boardRect.tile)
     g.fillStyle(PLAYER_COLOR, alpha)
     g.slice(x, y, radius, mouth, Math.PI * 2 - mouth, false)
     g.fillPath()
@@ -851,7 +852,7 @@ export class PacRescueScene extends Phaser.Scene {
     g.fillCircle(x + radius * 0.1, y - radius * 0.42, Math.max(2, radius * 0.1))
   }
 
-  private drawEyeCatPlayer(): void {
+  private drawEyeCatPlayer(g: Phaser.GameObjects.Graphics): void {
     const position = actorPosition(this.player, this.level)
     const textureKey = this.eyeCatTextureKey()
     if (this.playerSprite?.texture.key !== textureKey) {
@@ -864,6 +865,7 @@ export class PacRescueScene extends Phaser.Scene {
     const alpha = this.invincibleRemaining > 0 && Math.floor(this.elapsed * 12) % 2 === 0 ? 0.42 : 1
     const bob = Math.sin(this.elapsed * 8) * this.boardRect.tile * 0.035
     const size = this.boardRect.tile * (0.9 + Math.sin(this.elapsed * 5) * 0.015)
+    this.drawPowerHalo(g, this.cx(position.x), this.cy(position.y) + bob, size)
     sprite
       .setVisible(true)
       .setPosition(this.cx(position.x), this.cy(position.y) + bob)
@@ -871,6 +873,18 @@ export class PacRescueScene extends Phaser.Scene {
       .setAlpha(alpha)
       .setFlipX(this.playerFacingX < 0)
       .setFlipY(false)
+  }
+
+  private drawPowerHalo(g: Phaser.GameObjects.Graphics, x: number, y: number, size: number): void {
+    if (this.frightRemaining <= 0) return
+    const pulse = 0.88 + Math.sin(this.elapsed * 5.5) * 0.08
+    const radius = size * pulse
+    g.fillStyle(0xffd982, 0.12)
+    g.fillCircle(x, y, radius * 0.82)
+    g.fillStyle(0xff7bb8, 0.12)
+    g.fillCircle(x, y, radius * 0.58)
+    g.lineStyle(Math.max(2, size * 0.035), 0xfff3bf, 0.28)
+    g.strokeCircle(x, y, radius * 0.72)
   }
 
   private hidePlayerSprite(): void {

@@ -18,9 +18,11 @@ const LEVEL_INSTRUCTION_DURATION = 2600
 const EVENT_INSTRUCTION_DURATION = 2200
 const LEVEL_INSTRUCTION_DELAY = 1800
 const IDLE_KEY_REMINDER_MS = 5000
+const RESCUE_REMINDER_MS = 10000
 const INSTRUCTION_RETRY_MS = 900
 const POWER_INSTRUCTION_BUFFER_MS = 200
 const KEYBOARD_JOYSTICK_HIDE_MS = 1800
+const MUSIC_VOLUME = 0.36
 
 type MapPreset = {
   id: string
@@ -104,7 +106,12 @@ export default function App() {
   const delayedInstructionTimer = useRef<number | undefined>(undefined)
   const keyReminderTimer = useRef<number | undefined>(undefined)
   const keyReminderShown = useRef(false)
+  const rescueReminderTimer = useRef<number | undefined>(undefined)
+  const rescueReminderShown = useRef(false)
   const keyboardJoystickTimer = useRef<number | undefined>(undefined)
+  const musicPrimeTimer = useRef<number | undefined>(undefined)
+  const musicPrimedRef = useRef(false)
+  const musicWasPlayingBeforeHidden = useRef(false)
   const pendingAfterPowerInstruction = useRef<{ text: string; phase: InstructionPhase } | null>(null)
   const [activeIndex, setActiveIndex] = useState(0)
   const [mapText, setMapText] = useState(mapPresets[0].mapText)
@@ -123,10 +130,12 @@ export default function App() {
   const [heartLossPopup, setHeartLossPopup] = useState<HeartLossPopup | null>(null)
   const [showCredits, setShowCredits] = useState(false)
   const [showConcept, setShowConcept] = useState(false)
+  const [showFinalClear, setShowFinalClear] = useState(false)
   const [devOpen, setDevOpen] = useState(false)
   const [loading, setLoading] = useState(true)
   const counts = useMemo(() => mapCounts(mapText), [mapText])
   const finished = runtime.status === 'won' || runtime.status === 'gameover'
+  const modalOpen = showCredits || showConcept || showFinalClear
   const shellStyle = useMemo(() => ({
     '--stage-bg': `url("${BACKGROUND_PATH}")`,
     '--spot-joy-x': `${toPercent(gameConfig.layout.joystick.x, gameConfig.layout.designWidth)}`,
@@ -145,10 +154,42 @@ export default function App() {
     setAudioUnlocked(true)
   }, [])
 
+  const primeMusicFromGesture = useCallback(() => {
+    const audio = musicRef.current
+    if (!audio || musicPrimedRef.current || musicStartedRef.current || !musicEnabledRef.current) return
+    musicPrimedRef.current = true
+    audio.muted = true
+    audio.volume = 0
+    audio.loop = true
+    const prime = audio.play()
+    prime.catch(() => {
+      if (!musicStartedRef.current) {
+        musicPrimedRef.current = false
+        audio.muted = false
+        audio.volume = MUSIC_VOLUME
+      }
+    })
+  }, [])
+
+  const prepareAudioFromGesture = useCallback(() => {
+    unlockAudio()
+    primeMusicFromGesture()
+  }, [primeMusicFromGesture, unlockAudio])
+
   useEffect(() => {
     musicEnabledRef.current = musicEnabled
     musicStartedRef.current = musicStarted
   }, [musicEnabled, musicStarted])
+
+  useEffect(() => {
+    const audio = musicRef.current
+    if (!audio) return
+    audio.volume = MUSIC_VOLUME
+    audio.loop = true
+    audio.preload = 'auto'
+    ;(audio as HTMLAudioElement & { playsInline?: boolean }).playsInline = true
+    audio.load()
+  }, [])
 
   useEffect(() => {
     levelPausedRef.current = levelPaused
@@ -172,8 +213,14 @@ export default function App() {
     if (keyReminderTimer.current) {
       window.clearTimeout(keyReminderTimer.current)
     }
+    if (rescueReminderTimer.current) {
+      window.clearTimeout(rescueReminderTimer.current)
+    }
     if (keyboardJoystickTimer.current) {
       window.clearTimeout(keyboardJoystickTimer.current)
+    }
+    if (musicPrimeTimer.current) {
+      window.clearTimeout(musicPrimeTimer.current)
     }
   }, [])
 
@@ -198,6 +245,13 @@ export default function App() {
     }
   }, [])
 
+  const clearRescueReminder = useCallback(() => {
+    if (rescueReminderTimer.current) {
+      window.clearTimeout(rescueReminderTimer.current)
+      rescueReminderTimer.current = undefined
+    }
+  }, [])
+
   const scheduleKeyReminder = useCallback((snapshot: RuntimeSnapshot, delay = IDLE_KEY_REMINDER_MS) => {
     clearKeyReminder()
     if (keyReminderShown.current || snapshot.status !== 'playing' || snapshot.keysCollected >= snapshot.requiredKeys) return
@@ -215,6 +269,23 @@ export default function App() {
     keyReminderTimer.current = window.setTimeout(showReminderIfAllowed, delay)
   }, [clearKeyReminder, showInstruction])
 
+  const scheduleRescueReminder = useCallback((snapshot: RuntimeSnapshot, delay = RESCUE_REMINDER_MS) => {
+    clearRescueReminder()
+    if (rescueReminderShown.current || snapshot.status !== 'playing' || snapshot.keysCollected < snapshot.requiredKeys) return
+    const showReminderIfAllowed = () => {
+      const current = runtimeRef.current ?? snapshot
+      if (rescueReminderShown.current || current.status !== 'playing' || current.keysCollected < current.requiredKeys) return
+      if (levelPausedRef.current || current.frightRemaining > 0 || instructionVisibleRef.current || pendingAfterPowerInstruction.current) {
+        rescueReminderTimer.current = window.setTimeout(showReminderIfAllowed, INSTRUCTION_RETRY_MS)
+        return
+      }
+      rescueReminderTimer.current = undefined
+      rescueReminderShown.current = true
+      showInstruction('Rescue the cat.', 'rescue', LEVEL_INSTRUCTION_DURATION)
+    }
+    rescueReminderTimer.current = window.setTimeout(showReminderIfAllowed, delay)
+  }, [clearRescueReminder, showInstruction])
+
   const showLevelInstructionSoon = useCallback((snapshot: RuntimeSnapshot) => {
     if (delayedInstructionTimer.current) {
       window.clearTimeout(delayedInstructionTimer.current)
@@ -222,16 +293,43 @@ export default function App() {
     setInstructionVisible(false)
     setInstructionText('')
     keyReminderShown.current = false
+    rescueReminderShown.current = false
+    clearRescueReminder()
     delayedInstructionTimer.current = window.setTimeout(() => {
       delayedInstructionTimer.current = undefined
       scheduleKeyReminder(snapshot)
     }, LEVEL_INSTRUCTION_DELAY)
-  }, [scheduleKeyReminder])
+  }, [clearRescueReminder, scheduleKeyReminder])
 
   const resumeLevelFromPause = useCallback(() => {
     setLevelPaused(false)
-    showLevelInstructionSoon(runtime)
-  }, [runtime, showLevelInstructionSoon])
+    const current = runtimeRef.current ?? runtime
+    if (current.status === 'playing' && current.keysCollected >= current.requiredKeys) {
+      rescueReminderShown.current = false
+      scheduleRescueReminder(current)
+      return
+    }
+    showLevelInstructionSoon(current)
+  }, [runtime, scheduleRescueReminder, showLevelInstructionSoon])
+
+  const pauseForModal = useCallback(() => {
+    if (!started || runtimeRef.current?.status !== 'playing') return
+    joystickRef.current = ZERO_INPUT
+    clearKeyReminder()
+    clearRescueReminder()
+    setLevelPaused(true)
+    setInstructionVisible(false)
+  }, [clearKeyReminder, clearRescueReminder, started])
+
+  const openCredits = useCallback(() => {
+    pauseForModal()
+    setShowCredits(true)
+  }, [pauseForModal])
+
+  const openConcept = useCallback(() => {
+    pauseForModal()
+    setShowConcept(true)
+  }, [pauseForModal])
 
   const hideJoystickForKeyboard = useCallback(() => {
     setKeyboardJoystickHidden(true)
@@ -247,15 +345,61 @@ export default function App() {
   const startMusicFromMovement = useCallback(() => {
     const audio = musicRef.current
     if (!audio || !musicEnabledRef.current || musicStartedRef.current) return
-    audio.volume = 0.36
+    if (musicPrimeTimer.current) {
+      window.clearTimeout(musicPrimeTimer.current)
+      musicPrimeTimer.current = undefined
+    }
+    audio.muted = false
+    audio.volume = MUSIC_VOLUME
     audio.loop = true
+    musicPrimeTimer.current = window.setTimeout(() => {
+      musicPrimeTimer.current = undefined
+      audio.muted = false
+      audio.volume = MUSIC_VOLUME
+      if (audio.paused) {
+        void audio.play()
+          .then(() => setMusicStarted(true))
+          .catch(() => setMusicStarted(false))
+      } else {
+        setMusicStarted(true)
+      }
+    }, 0)
     void audio.play()
-      .then(() => setMusicStarted(true))
+      .then(() => {
+        audio.muted = false
+        audio.volume = MUSIC_VOLUME
+        setMusicStarted(true)
+      })
       .catch(() => setMusicStarted(false))
   }, [])
 
+  useEffect(() => {
+    const handleVisibility = () => {
+      const audio = musicRef.current
+      if (!audio) return
+      if (document.hidden) {
+        musicWasPlayingBeforeHidden.current = !audio.paused && musicEnabledRef.current
+        if (musicPrimeTimer.current) {
+          window.clearTimeout(musicPrimeTimer.current)
+          musicPrimeTimer.current = undefined
+        }
+        audio.pause()
+        setMusicStarted(false)
+        musicPrimedRef.current = false
+        return
+      }
+      if (musicWasPlayingBeforeHidden.current && musicEnabledRef.current) {
+        musicWasPlayingBeforeHidden.current = false
+        startMusicFromMovement()
+      }
+    }
+
+    document.addEventListener('visibilitychange', handleVisibility)
+    return () => document.removeEventListener('visibilitychange', handleVisibility)
+  }, [startMusicFromMovement])
+
   const startGame = useCallback((initialInput: JoystickInput = ZERO_INPUT) => {
-    unlockAudio()
+    prepareAudioFromGesture()
     previousRuntime.current = null
     joystickRef.current = { ...initialInput }
     const initialRuntime = createInitialRuntime(mapText, settings)
@@ -264,7 +408,7 @@ export default function App() {
     setLevelPaused(false)
     showLevelInstructionSoon(initialRuntime)
     setRestartToken((token) => token + 1)
-  }, [mapText, settings, showLevelInstructionSoon, unlockAudio])
+  }, [mapText, settings, showLevelInstructionSoon, prepareAudioFromGesture])
 
   useEffect(() => {
     const image = new Image()
@@ -288,16 +432,16 @@ export default function App() {
 
       if (isMovementKey(event.key)) {
         clearKeyReminder()
-        unlockAudio()
+        prepareAudioFromGesture()
         startMusicFromMovement()
-        if (!showCredits && !showConcept) {
+        if (!modalOpen) {
           hideJoystickForKeyboard()
         }
-        if (!started && !event.repeat && !showCredits && !showConcept) {
+        if (!started && !event.repeat && !modalOpen) {
           event.preventDefault()
           keyboardStartRef.current = true
           startGame(inputFromKey(event.key))
-        } else if (started && levelPausedRef.current && !showCredits && !showConcept) {
+        } else if (started && levelPausedRef.current && !modalOpen) {
           event.preventDefault()
           resumeLevelFromPause()
         }
@@ -309,7 +453,7 @@ export default function App() {
         joystickRef.current = ZERO_INPUT
         keyboardStartRef.current = false
       }
-      if (isMovementKey(event.key) && started && !levelPausedRef.current && !showCredits && !showConcept) {
+      if (isMovementKey(event.key) && started && !levelPausedRef.current && !modalOpen) {
         const current = runtimeRef.current
         if (current) scheduleKeyReminder(current)
       }
@@ -321,7 +465,7 @@ export default function App() {
       window.removeEventListener('keydown', handleKey)
       window.removeEventListener('keyup', handleKeyUp)
     }
-  }, [clearKeyReminder, hideJoystickForKeyboard, resumeLevelFromPause, scheduleKeyReminder, started, showCredits, showConcept, startGame, startMusicFromMovement, unlockAudio])
+  }, [clearKeyReminder, hideJoystickForKeyboard, modalOpen, resumeLevelFromPause, scheduleKeyReminder, started, startGame, startMusicFromMovement, prepareAudioFromGesture])
 
   useEffect(() => {
     if (!started || !hostRef.current) return
@@ -375,10 +519,12 @@ export default function App() {
     if (runtime.status === 'won' && previous.status !== 'won') {
       playSfx('win')
       clearKeyReminder()
+      clearRescueReminder()
       setInstructionVisible(false)
     }
     if (runtime.status === 'gameover' && previous.status !== 'gameover') {
       clearKeyReminder()
+      clearRescueReminder()
       playSfx('gameover')
     }
     if (previous.frightRemaining > 0 && runtime.frightRemaining <= 0 && pendingAfterPowerInstruction.current) {
@@ -386,27 +532,42 @@ export default function App() {
       pendingAfterPowerInstruction.current = null
       if (started && !levelPaused && runtime.status === 'playing') {
         showInstruction(pending.text, pending.phase)
+        if (pending.phase === 'rescue') {
+          clearKeyReminder()
+          scheduleRescueReminder(runtime)
+        }
       }
+      return
+    }
+    if (started && !levelPaused && runtime.status === 'playing' && runtime.frightRemaining > previous.frightRemaining) {
+      const afterPower = instructionAfterPower(runtime)
+      pendingAfterPowerInstruction.current = afterPower ? { text: afterPower, phase: phaseForInstruction(afterPower, runtime) } : null
+      if (afterPower === 'Rescue the cat.') {
+        clearKeyReminder()
+        clearRescueReminder()
+      }
+      showInstruction(
+        'Eyecat is invincible.',
+        'power-up',
+        runtime.frightRemaining * 1000 + POWER_INSTRUCTION_BUFFER_MS,
+      )
       return
     }
     if (started && !levelPaused && shouldShowInstructionNotice(previous, runtime)) {
       const nextInstruction = compactInstruction(runtime)
       if (nextInstruction) {
-        if (runtime.frightRemaining > 0 && nextInstruction === 'Eyecat is invincible.') {
-          const afterPower = instructionAfterPower(runtime)
-          pendingAfterPowerInstruction.current = afterPower ? { text: afterPower, phase: phaseForInstruction(afterPower, runtime) } : null
-          if (runtime.frightRemaining <= previous.frightRemaining) return
-          showInstruction(
-            nextInstruction,
-            'power-up',
-            runtime.frightRemaining * 1000 + POWER_INSTRUCTION_BUFFER_MS,
-          )
+        const phase = phaseForInstruction(nextInstruction, runtime)
+        if (phase === 'rescue') {
+          clearKeyReminder()
+          pendingAfterPowerInstruction.current = null
+          showInstruction(nextInstruction, phase)
+          scheduleRescueReminder(runtime)
           return
         }
-        showInstruction(nextInstruction, runtime.instructionPhase)
+        showInstruction(nextInstruction, phase)
       }
     }
-  }, [runtime, audioUnlocked, clearKeyReminder, levelPaused, showInstruction, started])
+  }, [runtime, audioUnlocked, clearKeyReminder, clearRescueReminder, levelPaused, scheduleRescueReminder, showInstruction, started])
 
   const switchPreset = useCallback((index: number, shouldStart: boolean, shouldPause = false) => {
     const preset = mapPresets[index] ?? mapPresets[0]
@@ -414,25 +575,37 @@ export default function App() {
     previousRuntime.current = null
     pendingAfterPowerInstruction.current = null
     clearKeyReminder()
+    clearRescueReminder()
+    keyReminderShown.current = false
+    rescueReminderShown.current = false
     setActiveIndex(index)
     setMapText(preset.mapText)
     setSettings(preset.settings)
     setRuntime(createInitialRuntime(preset.mapText, preset.settings))
     setStarted(shouldStart)
     setLevelPaused(shouldStart && shouldPause)
+    setShowFinalClear(false)
     setInstructionVisible(false)
     setInstructionText('')
     setHeartLossPopup(null)
     setRestartToken((token) => token + 1)
-  }, [clearKeyReminder])
+  }, [clearKeyReminder, clearRescueReminder])
 
   useEffect(() => {
     if (runtime.status !== 'won') {
       return undefined
     }
 
-    const nextIndex = nextLevelIndex(activeIndex, mapPresets.length) ?? 0
-    const timer = window.setTimeout(() => switchPreset(nextIndex, true, true), 720)
+    const nextIndex = nextLevelIndex(activeIndex, mapPresets.length)
+    const timer = window.setTimeout(() => {
+      if (nextIndex === undefined) {
+        joystickRef.current = ZERO_INPUT
+        setLevelPaused(true)
+        setShowFinalClear(true)
+        return
+      }
+      switchPreset(nextIndex, true, true)
+    }, 720)
     return () => window.clearTimeout(timer)
   }, [activeIndex, runtime.status, switchPreset])
 
@@ -451,19 +624,28 @@ export default function App() {
   }
 
   const toggleMusic = () => {
-    unlockAudio()
+    prepareAudioFromGesture()
     const next = !musicEnabled
     setMusicEnabled(next)
     const audio = musicRef.current
     if (!audio) return
     if (next) {
-      audio.volume = 0.36
+      audio.muted = false
+      audio.volume = MUSIC_VOLUME
       audio.loop = true
       void audio.play()
         .then(() => setMusicStarted(true))
         .catch(() => setMusicStarted(false))
     } else {
+      if (musicPrimeTimer.current) {
+        window.clearTimeout(musicPrimeTimer.current)
+        musicPrimeTimer.current = undefined
+      }
       audio.pause()
+      audio.currentTime = 0
+      audio.muted = false
+      audio.volume = MUSIC_VOLUME
+      musicPrimedRef.current = false
       setMusicStarted(false)
     }
   }
@@ -473,20 +655,20 @@ export default function App() {
     const isMoving = Math.hypot(input.x, input.y) > 0.12
     if (isMoving) {
       clearKeyReminder()
+      prepareAudioFromGesture()
       if (keyboardJoystickTimer.current) {
         window.clearTimeout(keyboardJoystickTimer.current)
         keyboardJoystickTimer.current = undefined
       }
       setKeyboardJoystickHidden(false)
-      unlockAudio()
       startMusicFromMovement()
-      if (!started && !showCredits && !showConcept) {
+      if (!started && !modalOpen) {
         keyboardStartRef.current = false
         startGame(input)
-      } else if (started && levelPaused && !showCredits && !showConcept) {
+      } else if (started && levelPaused && !modalOpen) {
         resumeLevelFromPause()
       }
-    } else if (started && !levelPaused && !showCredits && !showConcept) {
+    } else if (started && !levelPaused && !modalOpen) {
       const current = runtimeRef.current
       if (current) scheduleKeyReminder(current)
     }
@@ -499,6 +681,11 @@ export default function App() {
     setRestartToken((token) => token + 1)
   }
 
+  const closeFinalClear = () => {
+    setShowFinalClear(false)
+    switchPreset(0, true, true)
+  }
+
   return (
     <main className="page-shell" style={shellStyle}>
       <audio ref={musicRef} preload="auto" src={MUSIC_PATH} />
@@ -506,7 +693,7 @@ export default function App() {
         {loading ? <div className="loading-screen" aria-hidden="true" /> : null}
 
         <header className="game-topbar" style={rectStyle(gameConfig.layout.topBar)}>
-          <button className="title-button" type="button" onClick={() => setShowConcept(true)} title="View original game idea">
+          <button className="title-button" type="button" onClick={openConcept} title="View original game idea">
             <span>{gameConfig.copy.title}</span>
           </button>
           <div className="key-strip" aria-label={`${runtime.keysCollected} of ${runtime.requiredKeys} keys collected`}>
@@ -540,17 +727,18 @@ export default function App() {
           </div>
         ) : null}
         <div className="button-row">
-          <button className="control-button credits-button" style={rectStyle(gameConfig.layout.buttons.credits)} type="button" onClick={() => setShowCredits(true)}>{gameConfig.copy.creditsLabel}</button>
+          <button className="control-button credits-button" style={rectStyle(gameConfig.layout.buttons.credits)} type="button" onClick={openCredits}>{gameConfig.copy.creditsLabel}</button>
           <button className={`control-button music-button ${musicEnabled ? 'active' : ''}`} style={rectStyle(gameConfig.layout.buttons.music)} type="button" onClick={toggleMusic}>
             {musicEnabled ? (musicStarted ? gameConfig.copy.musicOnLabel : gameConfig.copy.musicStartLabel) : gameConfig.copy.musicOffLabel}
           </button>
         </div>
         <MoveJoystick
-          disabled={finished || showCredits || showConcept}
+          disabled={finished || modalOpen}
           hidden={keyboardJoystickHidden}
           intro={!started}
           center={gameConfig.layout.joystick}
           onChange={handleJoystick}
+          onPrepareGesture={prepareAudioFromGesture}
           style={circleStyle(gameConfig.layout.joystick)}
           zone={gameConfig.layout.joystickZone}
           zoneStyle={rectStyle(gameConfig.layout.joystickZone)}
@@ -567,6 +755,7 @@ export default function App() {
 
         {showCredits ? <CreditsModal onClose={() => setShowCredits(false)} /> : null}
         {showConcept ? <ConceptModal onClose={() => setShowConcept(false)} /> : null}
+        {showFinalClear ? <FinalClearModal onClose={closeFinalClear} /> : null}
         {devOpen ? (
           <DevPanel
             activeIndex={activeIndex}
@@ -640,6 +829,7 @@ function MoveJoystick({
   hidden,
   intro,
   onChange,
+  onPrepareGesture,
   style,
   zone: zoneConfig,
   zoneStyle,
@@ -649,6 +839,7 @@ function MoveJoystick({
   hidden: boolean
   intro: boolean
   onChange: (input: JoystickInput) => void
+  onPrepareGesture: () => void
   style: CSSProperties
   zone: { x: number; y: number; width: number; height: number }
   zoneStyle: CSSProperties
@@ -682,6 +873,7 @@ function MoveJoystick({
 
   const startDrag = (event: React.PointerEvent<HTMLDivElement>) => {
     if (disabled) return
+    onPrepareGesture()
     const rect = zone.current?.getBoundingClientRect()
     if (!rect) return
     const base = pointerToDesignPoint(event, rect, zoneConfig)
@@ -749,11 +941,46 @@ function CreditsModal({ onClose }: { onClose: () => void }) {
 
 function ConceptModal({ onClose }: { onClose: () => void }) {
   return (
-    <div className="modal-overlay concept-modal" role="dialog" aria-modal="true" aria-label="Original game idea">
+    <ImageModal
+      ariaLabel="Original game idea"
+      className="concept-modal"
+      onClose={onClose}
+      subtitle={gameConfig.concept.subtitle}
+      title={gameConfig.concept.title}
+    />
+  )
+}
+
+function FinalClearModal({ onClose }: { onClose: () => void }) {
+  return (
+    <ImageModal
+      ariaLabel="Vifysh Vacuum is defeated"
+      className="concept-modal final-clear-modal"
+      onClose={onClose}
+      title="Vifysh Vacuum Defeated!"
+    />
+  )
+}
+
+function ImageModal({
+  ariaLabel,
+  className,
+  onClose,
+  subtitle,
+  title,
+}: {
+  ariaLabel: string
+  className: string
+  onClose: () => void
+  subtitle?: string
+  title: string
+}) {
+  return (
+    <div className={`modal-overlay ${className}`} role="dialog" aria-modal="true" aria-label={ariaLabel}>
       <div className="modal-card">
         <button className="modal-close" type="button" onClick={onClose} aria-label="Close">×</button>
-        <div className="modal-title">{gameConfig.concept.title}</div>
-        <div className="modal-subtitle">{gameConfig.concept.subtitle}</div>
+        <div className="modal-title">{title}</div>
+        {subtitle ? <div className="modal-subtitle">{subtitle}</div> : null}
         <img
           className="concept-image"
           src={gameConfig.assets.concept}
