@@ -85,6 +85,7 @@ const PATROLLER_COLOR = 0xf2a04a
 const FRIGHT_COLOR = 0x64b7ff
 const EATEN_COLOR = 0x8791a1
 const VACUUM_ENEMY_KEY = 'enemy-vacuum'
+const VACUUM_WEAK_ENEMY_KEY = 'enemy-vacuum-weak'
 const EYE_CAT_BRONZE_PLAYER_KEY = 'player-eye-cat-bronze'
 const EYE_CAT_WHITE_PLAYER_KEY = 'player-eye-cat-white'
 const EYE_CAT_PLAIN_PLAYER_KEY = 'player-eye-cat-plain'
@@ -137,6 +138,7 @@ export class PacRescueScene extends Phaser.Scene {
 
   preload(): void {
     this.load.image(VACUUM_ENEMY_KEY, '/characters/character-vacuum.png')
+    this.load.image(VACUUM_WEAK_ENEMY_KEY, '/characters/character-vacuum-weak.png')
     this.load.image(EYE_CAT_BRONZE_PLAYER_KEY, '/characters/player-eye-cat-bronze.png')
     this.load.image(EYE_CAT_WHITE_PLAYER_KEY, '/characters/player-eye-cat-white.png')
     this.load.image(EYE_CAT_PLAIN_PLAYER_KEY, '/characters/player-eye-cat-plain.png')
@@ -725,7 +727,9 @@ export class PacRescueScene extends Phaser.Scene {
 
       const size = this.boardRect.tile * (chaser.inactive > 0 ? 1 : 1.34)
       const movingUp = chaser.direction.y < 0
+      const weakFrame = this.frightRemaining > 0 && chaser.inactive <= 0 && Math.floor(this.elapsed * 5 + index) % 2 === 0
       sprite
+        .setTexture(weakFrame ? VACUUM_WEAK_ENEMY_KEY : VACUUM_ENEMY_KEY)
         .setVisible(true)
         .setPosition(this.cx(position.x), this.cy(position.y))
         .setDisplaySize(size, size)
@@ -736,8 +740,6 @@ export class PacRescueScene extends Phaser.Scene {
       sprite.clearTint()
       if (chaser.inactive > 0) {
         sprite.setTint(EATEN_COLOR)
-      } else if (this.frightRemaining > 0) {
-        sprite.setTint(FRIGHT_COLOR)
       }
     }
 
