@@ -88,6 +88,7 @@ const EYE_CAT_BRONZE_PLAYER_KEY = 'player-eye-cat-bronze'
 const EYE_CAT_WHITE_PLAYER_KEY = 'player-eye-cat-white'
 const EYE_CAT_PLAIN_PLAYER_KEY = 'player-eye-cat-plain'
 const COIN_SPRITE_KEY = 'coin-sprite'
+const KEY_ITEM_KEY = 'item-key'
 const POWER_UP_ITEM_KEY = 'item-power-up'
 const RESCUE_CAT_KEY = 'rescue-cat'
 const CAMERA_SMOOTHING = 4.5
@@ -102,6 +103,7 @@ export class PacRescueScene extends Phaser.Scene {
   private graphics?: Phaser.GameObjects.Graphics
   private chaserSprites: Phaser.GameObjects.Image[] = []
   private coinSprites: Phaser.GameObjects.Image[] = []
+  private keySprites: Phaser.GameObjects.Image[] = []
   private powerPelletSprites: Phaser.GameObjects.Image[] = []
   private playerSprite?: Phaser.GameObjects.Image
   private hostageSprite?: Phaser.GameObjects.Image
@@ -144,6 +146,7 @@ export class PacRescueScene extends Phaser.Scene {
     if (this.settings.coinSkin === 'coin') {
       this.load.image(COIN_SPRITE_KEY, '/characters/character-coin.png')
     }
+    this.load.image(KEY_ITEM_KEY, '/characters/item-key.png')
     this.load.image(POWER_UP_ITEM_KEY, '/characters/item-power-up.png')
     this.load.image(RESCUE_CAT_KEY, '/characters/character-white-cat.png')
   }
@@ -616,9 +619,15 @@ export class PacRescueScene extends Phaser.Scene {
         g.fillCircle(this.cx(point.x), this.cy(point.y), this.boardRect.tile * 0.09)
       }
     }
-    for (const key of visibleUncollectedKeys(this.objective)) {
-      const point = parseKey(key)
-      this.drawKey(g, point.x, point.y)
+    const visibleKeys = [...visibleUncollectedKeys(this.objective)]
+    if (this.textures.exists(KEY_ITEM_KEY)) {
+      this.drawKeySprites(visibleKeys)
+    } else {
+      this.hideKeySprites()
+      for (const key of visibleKeys) {
+        const point = parseKey(key)
+        this.drawKey(g, point.x, point.y)
+      }
     }
     this.drawPowerPelletSprites()
   }
@@ -648,6 +657,34 @@ export class PacRescueScene extends Phaser.Scene {
     }
   }
 
+  private drawKeySprites(keys: string[]): void {
+    for (let index = 0; index < keys.length; index += 1) {
+      const point = parseKey(keys[index])
+      const sprite = this.keySprites[index] ?? this.add.image(0, 0, KEY_ITEM_KEY).setOrigin(0.5).setDepth(1.25)
+      this.keySprites[index] = sprite
+      const pulse = this.elapsed % 5
+      const wiggle = pulse < 0.75 ? Math.sin(pulse * Math.PI * 8) : 0
+      const bob = pulse < 0.75 ? Math.sin(pulse * Math.PI * 4) : 0
+      const width = this.boardRect.tile * 0.58
+      sprite
+        .setVisible(true)
+        .setPosition(this.cx(point.x) + wiggle * this.boardRect.tile * 0.035, this.cy(point.y) + bob * this.boardRect.tile * 0.025)
+        .setDisplaySize(width, width * 0.55)
+        .setAlpha(pulse < 0.75 ? 1 : 0.92)
+        .setRotation(0)
+    }
+
+    for (let index = keys.length; index < this.keySprites.length; index += 1) {
+      this.keySprites[index].setVisible(false)
+    }
+  }
+
+  private hideKeySprites(): void {
+    for (const sprite of this.keySprites) {
+      sprite.setVisible(false)
+    }
+  }
+
   private drawPowerPelletSprites(): void {
     const pellets = [...this.powerPellets]
     for (let index = 0; index < pellets.length; index += 1) {
@@ -655,11 +692,11 @@ export class PacRescueScene extends Phaser.Scene {
       const sprite = this.powerPelletSprites[index] ?? this.add.image(0, 0, POWER_UP_ITEM_KEY).setOrigin(0.5).setDepth(1.2)
       this.powerPelletSprites[index] = sprite
       const pulse = 1 + Math.sin(this.elapsed * 5.5 + point.x + point.y) * 0.08
-      const size = this.boardRect.tile * 0.68 * pulse
+      const height = this.boardRect.tile * 0.72 * pulse
       sprite
         .setVisible(true)
         .setPosition(this.cx(point.x), this.cy(point.y))
-        .setDisplaySize(size, size)
+        .setDisplaySize(height * 0.75, height)
         .setRotation(-0.16)
         .setAlpha(0.96)
     }
@@ -740,14 +777,14 @@ export class PacRescueScene extends Phaser.Scene {
       const sprite = this.chaserSprites[index] ?? this.add.image(0, 0, VACUUM_ENEMY_KEY).setOrigin(0.5).setDepth(2)
       this.chaserSprites[index] = sprite
 
-      const size = this.boardRect.tile * (chaser.inactive > 0 ? 1 : 1.34)
+      const size = this.boardRect.tile * (chaser.inactive > 0 ? 0.82 : 1.04)
       const movingUp = chaser.direction.y < 0
       const respawnFlicker = chaser.inactive > 0 && Math.floor(this.elapsed * 4 + index) % 2 === 0
       sprite
         .setTexture(VACUUM_ENEMY_KEY)
         .setVisible(true)
         .setPosition(this.cx(position.x), this.cy(position.y))
-        .setDisplaySize(size, size)
+        .setDisplaySize(size, size * 0.91)
         .setAlpha(chaser.inactive > 0 ? (respawnFlicker ? 0.28 : 0.72) : 1)
         .setFlipX(chaser.direction.x < 0 || movingUp)
         .setFlipY(movingUp)
