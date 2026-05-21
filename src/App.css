@@ -333,12 +333,11 @@ a:focus-visible {
 }
 
 .start-control-prompt {
-  padding: clamp(5px, 1.25cqw, 9px) clamp(8px, 2.0834cqw, 15px);
-  border-width: clamp(2px, 0.4167cqw, 3px);
-  border-radius: clamp(10px, 2.5cqw, 18px);
-  font-size: clamp(8px, 2.0834cqw, 15px);
+  padding: 6px 11px;
+  border-radius: 14px;
+  font-size: clamp(9px, 1.72cqw, 13px);
   font-weight: 650;
-  line-height: 1.25;
+  line-height: 1.12;
 }
 
 .button-row {
