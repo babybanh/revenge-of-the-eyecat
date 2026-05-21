@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from 'react'
 import Phaser from 'phaser'
 import './App.css'
-import { defaultPacRescueSettings } from './game/pacrescue/defaults'
+import { defaultPacRescueLevelMaps, defaultPacRescueSettings } from './game/pacrescue/defaults'
 import { capMapTextCounts, mapCounts, parseMapText, rebalanceMapText, sanitizeSettings } from './game/pacrescue/map'
 import { createDelayedKeyState } from './game/pacrescue/objective'
 import type { MazeFloor, MazeWall, PacRescueSettings, RuntimeSnapshot } from './game/pacrescue/types'
@@ -28,7 +28,7 @@ const baseSettings = sanitizeSettings({
   coinSkin: 'coin',
   mazeFloor: 'transparent',
   mazeWall: 'spotlight-cream',
-  stageBackground: 'lab-final-ruin',
+  stageBackground: 'lab-final-ruin-2',
   stageBackgroundScale: 100,
   playerSpeed: 3.6,
   chaserSpeed: 1.65,
@@ -41,75 +41,35 @@ const baseSettings = sanitizeSettings({
   wanderTurnInterval: 0.9,
 })
 
-const mapPresets: MapPreset[] = [
-  makePreset('ruin-gate', 'Ruin Gate', 'Small first rescue route', [
-    '###########',
-    '#P....K..O#',
-    '#.###.###.#',
-    '#...#.....#',
-    '###.#.###.#',
-    '#...H...C.#',
-    '#.###.#.#.#',
-    '#K....#...#',
-    '#.###.###.#',
-    '#O..C...K.#',
-    '###########',
-  ], { chaserCount: 2, keyCount: 3, requiredKeys: 3, coinGoalPercent: 35, chaserSpeed: 1.45 }),
-  makePreset('broken-halls', 'Broken Halls', 'Longer lanes with two vacuum patrols', [
-    '#############',
-    '#P....#....K#',
-    '#.##.#.#.##.#',
-    '#O...#.#...O#',
-    '###.##.##.###',
-    '#...C.H.C...#',
-    '#.###...###.#',
-    '#K....#....K#',
-    '#.##.#.#.##.#',
-    '#....#.#....#',
-    '#############',
-  ], { chaserCount: 2, keyCount: 3, requiredKeys: 3, coinGoalPercent: 45, chaserSpeed: 1.55 }),
-  makePreset('spiral-court', 'Spiral Court', 'Tighter route, more coin pressure', [
-    '###############',
-    '#P....#....K..#',
-    '#.###.#.#####.#',
-    '#...#.#.....#.#',
-    '###.#.#####.#.#',
-    '#K..#...H...#O#',
-    '#.#####.#####.#',
-    '#.....#.#.....#',
-    '#.###.#.#.###.#',
-    '#O..C...C...K.#',
-    '###############',
-  ], { chaserCount: 2, keyCount: 3, requiredKeys: 3, coinGoalPercent: 50, chaserSpeed: 1.7 }),
-  makePreset('vacuum-cross', 'Vacuum Cross', 'Four enemies, open intersections', [
-    '###############',
-    '#P...K...O...K#',
-    '#.###.###.###.#',
-    '#.....C.C.....#',
-    '###.#.###.#.###',
-    '#...#..H..#...#',
-    '###.#.###.#.###',
-    '#.....C.C.....#',
-    '#.###.###.###.#',
-    '#K...O.....K..#',
-    '###############',
-  ], { chaserCount: 4, keyCount: 4, requiredKeys: 4, coinGoalPercent: 45, chaserSpeed: 1.45 }),
-  makePreset('final-ruin', 'Final Ruin', 'Wide contest draft map', [
-    '#################',
-    '#P....K...#...O.#',
-    '#.###.###.#.###.#',
-    '#...#.....#...#K#',
-    '###.#.#######.#.#',
-    '#...#...C...#...#',
-    '#.#####.H.#####.#',
-    '#...#...C...#...#',
-    '#.#.#######.#.###',
-    '#K#...#.....#...#',
-    '#.###.#.###.###.#',
-    '#.O...#...K....C#',
-    '#################',
-  ], { chaserCount: 3, keyCount: 4, requiredKeys: 4, coinGoalPercent: 48, chaserSpeed: 1.6 }),
+const levelTuning: Array<Partial<PacRescueSettings>> = [
+  { chaserCount: 1, keyCount: 1, requiredKeys: 1, coinGoalPercent: 25, chaserSpeed: 1.1 },
+  { chaserCount: 1, keyCount: 1, requiredKeys: 1, coinGoalPercent: 30, chaserSpeed: 1.2 },
+  { chaserCount: 2, keyCount: 2, requiredKeys: 2, coinGoalPercent: 35, chaserSpeed: 1.35 },
+  { chaserCount: 2, keyCount: 3, requiredKeys: 3, coinGoalPercent: 40, chaserSpeed: 1.45 },
+  { chaserCount: 2, keyCount: 2, requiredKeys: 2, coinGoalPercent: 42, chaserSpeed: 1.55 },
+  { chaserCount: 4, keyCount: 4, requiredKeys: 4, coinGoalPercent: 45, chaserSpeed: 1.55 },
+  { chaserCount: 4, keyCount: 4, requiredKeys: 4, coinGoalPercent: 50, chaserSpeed: 1.65 },
 ]
+
+const levelTaglines = [
+  'First tiny rescue route',
+  'A small ruin with an open tunnel',
+  'Two-vacuum path reading',
+  'Key pockets and tighter turns',
+  'Longer rescue lane pressure',
+  'Symmetric stage with four vacuums',
+  'Final sandbox draft with the full patrol set',
+]
+
+const mapPresets: MapPreset[] = defaultPacRescueLevelMaps.map((level, index) => (
+  makePreset(
+    `level-${index + 1}`,
+    level.name,
+    levelTaglines[index] ?? 'Ruin rescue route',
+    level.mapText,
+    levelTuning[index] ?? {},
+  )
+))
 
 export default function App() {
   const hostRef = useRef<HTMLDivElement | null>(null)
@@ -390,14 +350,15 @@ export default function App() {
   )
 }
 
-function makePreset(id: string, name: string, tagline: string, rows: string[], patch: Partial<PacRescueSettings>): MapPreset {
+function makePreset(id: string, name: string, tagline: string, sourceMapText: string, patch: Partial<PacRescueSettings>): MapPreset {
+  const rows = sourceMapText.split('\n')
   const settings = sanitizeSettings({
     ...baseSettings,
     ...patch,
     mazeColumns: rows[0]?.length ?? baseSettings.mazeColumns,
     mazeRows: rows.length,
   })
-  const mapText = capMapTextCounts(rows.join('\n'), settings)
+  const mapText = capMapTextCounts(sourceMapText, settings)
   return { id, name, tagline, mapText, settings }
 }
 
@@ -486,6 +447,17 @@ function CreditsModal({ onClose }: { onClose: () => void }) {
         <h2>{gameConfig.credits.contestTitle}</h2>
         <p>{gameConfig.credits.studentCredit}</p>
         <p>{gameConfig.credits.developerCredit}</p>
+        <div className="credits-video">
+          <iframe
+            title="Cassia theme video"
+            src={gameConfig.credits.youtubeEmbedUrl}
+            allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+            allowFullScreen
+          />
+        </div>
+        <a href={gameConfig.credits.youtubeUrl} target="_blank" rel="noreferrer">
+          Cassia theme on YouTube
+        </a>
         <a href={gameConfig.credits.contestUrl} target="_blank" rel="noreferrer">
           PIK Composition Contest playlist
         </a>

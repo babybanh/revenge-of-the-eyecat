@@ -2,7 +2,7 @@
 
 ## Critical First Load
 
-- `backgrounds/lab-final-ruin.png` - ruin stage background and blurred page backdrop.
+- `backgrounds/lab-final-ruin-2.png` - ruin stage 2 background and blurred page backdrop.
 - `characters/player-eye-cat-plain.png` - primary borderless Eyecat player art.
 - `characters/character-vacuum.png` - vacuum enemy art.
 - `characters/character-white-cat.png` - cat hostage art.
@@ -14,6 +14,7 @@
 
 ## Optional Background Drafts
 
+- `backgrounds/lab-final-ruin.png`
 - `backgrounds/lab-ruin.png`
 - `backgrounds/lab-glow.png`
 

@@ -464,6 +464,7 @@ function sanitizeStageBackground(value: string): PacRescueSettings['stageBackgro
     || value === 'lab-glow'
     || value === 'lab-compact'
     || value === 'lab-final-ruin'
+    || value === 'lab-final-ruin-2'
     || value === 'none'
   ) {
     return value

@@ -19,17 +19,16 @@ describe('tile-step pac rescue movement', () => {
   it('starts from the requested playable prototype map', () => {
     const level = parseMapText(defaultPacRescueMap)
 
-    expect(level.width).toBe(9)
-    expect(level.height).toBe(9)
-    expect(level.playerStart).toEqual({ x: 4, y: 7 })
-    expect(level.hostage).toEqual({ x: 4, y: 4 })
+    expect(level.width).toBe(6)
+    expect(level.height).toBe(6)
+    expect(level.playerStart).toEqual({ x: 1, y: 4 })
+    expect(level.hostage).toEqual({ x: 3, y: 3 })
     expect(level.chasers).toEqual([
-      { x: 1, y: 3 },
-      { x: 7, y: 3 },
+      { x: 4, y: 2 },
     ])
-    expect(level.keys.size).toBe(3)
-    expect(level.powerPellets.size).toBe(1)
-    expect(level.coins.size).toBe(36)
+    expect(level.keys.size).toBe(1)
+    expect(level.powerPellets.size).toBe(0)
+    expect(level.coins.size).toBe(11)
   })
 
   it('gives every ghost at least one legal first move', () => {

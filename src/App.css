@@ -106,7 +106,7 @@ input:focus-visible {
 }
 
 .game-topbar {
-  z-index: 12;
+  z-index: 30;
   display: grid;
   grid-template-columns: minmax(150px, 1fr) auto auto;
   gap: 10px;
@@ -241,7 +241,7 @@ input:focus-visible {
 
 .bottom-controls {
   position: relative;
-  z-index: 13;
+  z-index: 30;
   display: grid;
   grid-template-columns: 148px minmax(0, 1fr) 156px;
   align-items: center;
@@ -516,10 +516,12 @@ input:focus-visible {
 .modal-card {
   position: relative;
   width: min(560px, 100%);
+  max-height: calc(100% - 24px);
+  overflow: auto;
   display: grid;
   justify-items: center;
-  gap: 14px;
-  padding: 38px 34px 32px;
+  gap: 12px;
+  padding: 34px 34px 28px;
   border-radius: 8px;
   color: #20283a;
   background: rgba(255, 250, 240, 0.94);
@@ -547,6 +549,23 @@ input:focus-visible {
 .modal-card a {
   color: #106f78;
   font-weight: 800;
+}
+
+.credits-video {
+  width: min(100%, 420px);
+  aspect-ratio: 16 / 9;
+  overflow: hidden;
+  border: 2px solid rgba(32, 40, 58, 0.14);
+  border-radius: 8px;
+  background: #111827;
+  box-shadow: 0 10px 28px rgba(4, 7, 18, 0.16);
+}
+
+.credits-video iframe {
+  display: block;
+  width: 100%;
+  height: 100%;
+  border: 0;
 }
 
 .modal-close {

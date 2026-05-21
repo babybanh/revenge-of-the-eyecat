@@ -22,6 +22,7 @@ export type StageBackground =
   | 'lab-glow'
   | 'lab-compact'
   | 'lab-final-ruin'
+  | 'lab-final-ruin-2'
 export type MazeWall =
   | 'electric-blue'
   | 'laser-cyan'

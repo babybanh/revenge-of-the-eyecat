@@ -34,17 +34,17 @@ npm run build
 | Vacuum enemy | chaser / patroller | `public/characters/character-vacuum.png` |
 | Cat hostage | hostage / rescue target | `public/characters/character-white-cat.png` |
 | Coin | collectible | `public/characters/character-coin.png` |
-| Ruin background | stage background | `public/backgrounds/lab-final-ruin.png` |
+| Ruin stage 2 background | stage background | `public/backgrounds/lab-final-ruin-2.png` |
 | Cassia theme | background music | `public/audio/cassia-revenge-of-the-eyecat-remix.mp3` |
 
 Some internal test names still use generic Pacman terms like ghost/chaser because those are rule-system terms. Player-facing copy should use Eyecat, vacuum, coin, key, and cat hostage.
 
 ## Current Draft
 
-- Five named maps are available in the hidden workshop.
+- Seven named maps are available in the hidden workshop.
 - Collect coins to reveal the final key, collect all visible keys, then rescue the cat hostage.
 - Power pellets temporarily let Eyecat stun vacuums.
 - Music starts from a real movement gesture.
 - Event SFX are generated in-browser for this first shell.
+- Credits use Cassia as the student credit and embed the current theme video: <https://youtu.be/sr8MUHoempk?si=fSSh9eexR-s-zNS8>
 - GitHub and Vercel setup are intentionally left for the next phase after local QA.
-

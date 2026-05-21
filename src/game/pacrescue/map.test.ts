@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { defaultPacRescueSettings } from './defaults'
+import { defaultPacRescueLevelMaps, defaultPacRescueSettings } from './defaults'
 import {
   canRescue,
   capMapTextCounts,
@@ -146,11 +146,31 @@ describe('pac rescue map helpers', () => {
     expect(sanitizeSettings({ ...defaultPacRescueSettings, stageBackground: 'lab-smoke' }).stageBackground).toBe('lab-smoke')
     expect(sanitizeSettings({ ...defaultPacRescueSettings, stageBackground: 'lab-compact' }).stageBackground).toBe('lab-compact')
     expect(sanitizeSettings({ ...defaultPacRescueSettings, stageBackground: 'lab-final-ruin' }).stageBackground).toBe('lab-final-ruin')
+    expect(sanitizeSettings({ ...defaultPacRescueSettings, stageBackground: 'lab-final-ruin-2' }).stageBackground).toBe('lab-final-ruin-2')
     expect(sanitizeSettings({ ...defaultPacRescueSettings, stageBackground: 'mystery' as typeof defaultPacRescueSettings.stageBackground }).stageBackground).toBe('none')
     expect(sanitizeSettings({ ...defaultPacRescueSettings, stageBackgroundScale: 20 }).stageBackgroundScale).toBe(60)
     expect(sanitizeSettings({ ...defaultPacRescueSettings, stageBackgroundScale: 260 }).stageBackgroundScale).toBe(220)
     expect(sanitizeSettings({ ...defaultPacRescueSettings, boardOffsetX: 999, boardOffsetY: -999 }).boardOffsetX).toBe(260)
     expect(sanitizeSettings({ ...defaultPacRescueSettings, boardOffsetX: 999, boardOffsetY: -999 }).boardOffsetY).toBe(-260)
+  })
+
+  it('ships seven default level maps with matching dimensions', () => {
+    expect(defaultPacRescueLevelMaps).toHaveLength(7)
+    expect(defaultPacRescueSettings.mazeColumns).toBe(6)
+    expect(defaultPacRescueSettings.mazeRows).toBe(6)
+
+    for (const levelMap of defaultPacRescueLevelMaps) {
+      const rows = levelMap.mapText.split('\n')
+      const width = rows[0].length
+      const level = parseMapText(levelMap.mapText)
+
+      expect(levelMap.name).toMatch(/^Level \d$/)
+      expect(rows.every((row) => row.length === width)).toBe(true)
+      expect(level.width).toBe(width)
+      expect(level.height).toBe(rows.length)
+      expect(level.keys.size).toBeGreaterThanOrEqual(1)
+      expect(level.coins.size).toBeGreaterThanOrEqual(1)
+    }
   })
 
   it('chooses a shortest-path chase direction through the maze', () => {
