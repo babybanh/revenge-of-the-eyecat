@@ -16,6 +16,10 @@ const ZERO_INPUT: JoystickInput = { x: 0, y: 0 }
 const PHASER_WORLD_SIZE = 672
 const LEVEL_INSTRUCTION_DURATION = 2600
 const EVENT_INSTRUCTION_DURATION = 2200
+const LEVEL_INSTRUCTION_DELAY = 1800
+const KEY_REMINDER_FIRST_MS = 5000
+const KEY_REMINDER_REPEAT_MS = 10000
+const KEYBOARD_JOYSTICK_HIDE_MS = 1800
 
 type MapPreset = {
   id: string
@@ -94,6 +98,10 @@ export default function App() {
   const keyboardStartRef = useRef(false)
   const previousRuntime = useRef<RuntimeSnapshot | null>(null)
   const instructionTimer = useRef<number | undefined>(undefined)
+  const delayedInstructionTimer = useRef<number | undefined>(undefined)
+  const keyReminderTimer = useRef<number | undefined>(undefined)
+  const keyReminderInterval = useRef<number | undefined>(undefined)
+  const keyboardJoystickTimer = useRef<number | undefined>(undefined)
   const [activeIndex, setActiveIndex] = useState(0)
   const [mapText, setMapText] = useState(mapPresets[0].mapText)
   const [settings, setSettings] = useState(mapPresets[0].settings)
@@ -107,6 +115,7 @@ export default function App() {
   const [musicEnabled, setMusicEnabled] = useState(true)
   const [musicStarted, setMusicStarted] = useState(false)
   const [audioUnlocked, setAudioUnlocked] = useState(false)
+  const [keyboardJoystickHidden, setKeyboardJoystickHidden] = useState(false)
   const [heartLossPopup, setHeartLossPopup] = useState<HeartLossPopup | null>(null)
   const [showCredits, setShowCredits] = useState(false)
   const [showConcept, setShowConcept] = useState(false)
@@ -145,9 +154,25 @@ export default function App() {
     if (instructionTimer.current) {
       window.clearTimeout(instructionTimer.current)
     }
+    if (delayedInstructionTimer.current) {
+      window.clearTimeout(delayedInstructionTimer.current)
+    }
+    if (keyReminderTimer.current) {
+      window.clearTimeout(keyReminderTimer.current)
+    }
+    if (keyReminderInterval.current) {
+      window.clearInterval(keyReminderInterval.current)
+    }
+    if (keyboardJoystickTimer.current) {
+      window.clearTimeout(keyboardJoystickTimer.current)
+    }
   }, [])
 
   const showInstruction = useCallback((text: string, phase: InstructionPhase = 'find-key', duration = EVENT_INSTRUCTION_DURATION) => {
+    if (delayedInstructionTimer.current) {
+      window.clearTimeout(delayedInstructionTimer.current)
+      delayedInstructionTimer.current = undefined
+    }
     setInstructionText(text)
     setInstructionPhase(phase)
     setInstructionVisible(true)
@@ -157,10 +182,57 @@ export default function App() {
     instructionTimer.current = window.setTimeout(() => setInstructionVisible(false), duration)
   }, [])
 
+  const clearKeyReminder = useCallback(() => {
+    if (keyReminderTimer.current) {
+      window.clearTimeout(keyReminderTimer.current)
+      keyReminderTimer.current = undefined
+    }
+    if (keyReminderInterval.current) {
+      window.clearInterval(keyReminderInterval.current)
+      keyReminderInterval.current = undefined
+    }
+  }, [])
+
+  const scheduleKeyReminder = useCallback((snapshot: RuntimeSnapshot, delay = KEY_REMINDER_FIRST_MS) => {
+    clearKeyReminder()
+    if (snapshot.status !== 'playing' || snapshot.keysCollected >= snapshot.requiredKeys) return
+    keyReminderTimer.current = window.setTimeout(() => {
+      keyReminderTimer.current = undefined
+      showInstruction(startLevelInstruction(snapshot), 'find-key', LEVEL_INSTRUCTION_DURATION)
+      keyReminderInterval.current = window.setInterval(() => {
+        showInstruction(startLevelInstruction(snapshot), 'find-key', LEVEL_INSTRUCTION_DURATION)
+      }, KEY_REMINDER_REPEAT_MS)
+    }, delay)
+  }, [clearKeyReminder, showInstruction])
+
+  const showLevelInstructionSoon = useCallback((snapshot: RuntimeSnapshot) => {
+    if (delayedInstructionTimer.current) {
+      window.clearTimeout(delayedInstructionTimer.current)
+    }
+    setInstructionVisible(false)
+    setInstructionText('')
+    delayedInstructionTimer.current = window.setTimeout(() => {
+      delayedInstructionTimer.current = undefined
+      showInstruction(startLevelInstruction(snapshot), 'find-key', LEVEL_INSTRUCTION_DURATION)
+    }, LEVEL_INSTRUCTION_DELAY)
+    scheduleKeyReminder(snapshot)
+  }, [scheduleKeyReminder, showInstruction])
+
   const resumeLevelFromPause = useCallback(() => {
     setLevelPaused(false)
-    showInstruction(startLevelInstruction(runtime), 'find-key', LEVEL_INSTRUCTION_DURATION)
-  }, [runtime, showInstruction])
+    showLevelInstructionSoon(runtime)
+  }, [runtime, showLevelInstructionSoon])
+
+  const hideJoystickForKeyboard = useCallback(() => {
+    setKeyboardJoystickHidden(true)
+    if (keyboardJoystickTimer.current) {
+      window.clearTimeout(keyboardJoystickTimer.current)
+    }
+    keyboardJoystickTimer.current = window.setTimeout(() => {
+      keyboardJoystickTimer.current = undefined
+      setKeyboardJoystickHidden(false)
+    }, KEYBOARD_JOYSTICK_HIDE_MS)
+  }, [])
 
   const startMusicFromMovement = useCallback(() => {
     const audio = musicRef.current
@@ -180,9 +252,9 @@ export default function App() {
     setRuntime(initialRuntime)
     setStarted(true)
     setLevelPaused(false)
-    showInstruction(startLevelInstruction(initialRuntime), 'find-key', LEVEL_INSTRUCTION_DURATION)
+    showLevelInstructionSoon(initialRuntime)
     setRestartToken((token) => token + 1)
-  }, [mapText, settings, showInstruction, unlockAudio])
+  }, [mapText, settings, showLevelInstructionSoon, unlockAudio])
 
   useEffect(() => {
     const image = new Image()
@@ -207,6 +279,9 @@ export default function App() {
       if (isMovementKey(event.key)) {
         unlockAudio()
         startMusicFromMovement()
+        if (!showCredits && !showConcept) {
+          hideJoystickForKeyboard()
+        }
         if (!started && !event.repeat && !showCredits && !showConcept) {
           event.preventDefault()
           keyboardStartRef.current = true
@@ -231,7 +306,7 @@ export default function App() {
       window.removeEventListener('keydown', handleKey)
       window.removeEventListener('keyup', handleKeyUp)
     }
-  }, [levelPaused, resumeLevelFromPause, started, showCredits, showConcept, startGame, startMusicFromMovement, unlockAudio])
+  }, [hideJoystickForKeyboard, levelPaused, resumeLevelFromPause, started, showCredits, showConcept, startGame, startMusicFromMovement, unlockAudio])
 
   useEffect(() => {
     if (!started || !hostRef.current) return
@@ -284,21 +359,29 @@ export default function App() {
     }
     if (runtime.status === 'won' && previous.status !== 'won') {
       playSfx('win')
+      clearKeyReminder()
       setInstructionVisible(false)
     }
-    if (runtime.status === 'gameover' && previous.status !== 'gameover') playSfx('gameover')
+    if (runtime.status === 'gameover' && previous.status !== 'gameover') {
+      clearKeyReminder()
+      playSfx('gameover')
+    }
+    if (runtime.keysCollected > previous.keysCollected) {
+      scheduleKeyReminder(runtime)
+    }
     if (started && !levelPaused && shouldShowInstructionNotice(previous, runtime)) {
       const nextInstruction = compactInstruction(runtime)
       if (nextInstruction) {
         showInstruction(nextInstruction, runtime.instructionPhase)
       }
     }
-  }, [runtime, audioUnlocked, levelPaused, showInstruction, started])
+  }, [runtime, audioUnlocked, clearKeyReminder, levelPaused, scheduleKeyReminder, showInstruction, started])
 
   const switchPreset = useCallback((index: number, shouldStart: boolean, shouldPause = false) => {
     const preset = mapPresets[index] ?? mapPresets[0]
     joystickRef.current = ZERO_INPUT
     previousRuntime.current = null
+    clearKeyReminder()
     setActiveIndex(index)
     setMapText(preset.mapText)
     setSettings(preset.settings)
@@ -309,7 +392,7 @@ export default function App() {
     setInstructionText('')
     setHeartLossPopup(null)
     setRestartToken((token) => token + 1)
-  }, [])
+  }, [clearKeyReminder])
 
   useEffect(() => {
     if (runtime.status !== 'won') {
@@ -356,6 +439,11 @@ export default function App() {
   const handleJoystick = (input: JoystickInput) => {
     joystickRef.current = input
     if (Math.hypot(input.x, input.y) > 0.12) {
+      if (keyboardJoystickTimer.current) {
+        window.clearTimeout(keyboardJoystickTimer.current)
+        keyboardJoystickTimer.current = undefined
+      }
+      setKeyboardJoystickHidden(false)
       unlockAudio()
       startMusicFromMovement()
       if (!started && !showCredits && !showConcept) {
@@ -406,7 +494,7 @@ export default function App() {
         <footer className="bottom-controls" style={rectStyle(gameConfig.layout.bottomControls)} aria-hidden="true" />
         {started && levelPaused ? (
           <div className="level-ready-prompt" style={centeredTextStyle(gameConfig.layout.eventPrompt)}>
-            <strong>{startLevelInstruction(runtime)}</strong>
+            <strong>{`Level ${activeIndex + 1}`}</strong>
           </div>
         ) : null}
         {started && instructionText && !levelPaused ? (
@@ -420,7 +508,16 @@ export default function App() {
             {musicEnabled ? (musicStarted ? gameConfig.copy.musicOnLabel : gameConfig.copy.musicStartLabel) : gameConfig.copy.musicOffLabel}
           </button>
         </div>
-        <MoveJoystick disabled={finished || showCredits || showConcept} intro={!started} onChange={handleJoystick} style={circleStyle(gameConfig.layout.joystick)} />
+        <MoveJoystick
+          disabled={finished || showCredits || showConcept}
+          hidden={keyboardJoystickHidden}
+          intro={!started}
+          center={gameConfig.layout.joystick}
+          onChange={handleJoystick}
+          style={circleStyle(gameConfig.layout.joystick)}
+          zone={gameConfig.layout.joystickZone}
+          zoneStyle={rectStyle(gameConfig.layout.joystickZone)}
+        />
 
         {!started ? (
           <div className="start-overlay" aria-hidden="true">
@@ -500,17 +597,38 @@ function StartPreview() {
   )
 }
 
-function MoveJoystick({ disabled, intro, onChange, style }: { disabled: boolean; intro: boolean; onChange: (input: JoystickInput) => void; style: CSSProperties }) {
-  const pad = useRef<HTMLDivElement | null>(null)
+function MoveJoystick({
+  center,
+  disabled,
+  hidden,
+  intro,
+  onChange,
+  style,
+  zone: zoneConfig,
+  zoneStyle,
+}: {
+  center: { x: number; y: number; radius: number }
+  disabled: boolean
+  hidden: boolean
+  intro: boolean
+  onChange: (input: JoystickInput) => void
+  style: CSSProperties
+  zone: { x: number; y: number; width: number; height: number }
+  zoneStyle: CSSProperties
+}) {
+  const zone = useRef<HTMLDivElement | null>(null)
+  const activeBaseRef = useRef<{ x: number; y: number } | null>(null)
   const [stick, setStick] = useState<JoystickInput>({ x: 0, y: 0 })
+  const [activeBase, setActiveBase] = useState<{ x: number; y: number } | null>(null)
 
-  const update = (event: React.PointerEvent<HTMLDivElement>) => {
+  const update = (event: React.PointerEvent<HTMLDivElement>, base = activeBaseRef.current) => {
     if (disabled) return
-    const rect = pad.current?.getBoundingClientRect()
-    if (!rect) return
-    const dx = event.clientX - (rect.left + rect.width / 2)
-    const dy = event.clientY - (rect.top + rect.height / 2)
-    const radius = Math.max(1, rect.width * 0.5)
+    const rect = zone.current?.getBoundingClientRect()
+    if (!rect || !base) return
+    const point = pointerToDesignPoint(event, rect, zoneConfig)
+    const dx = point.x - base.x
+    const dy = point.y - base.y
+    const radius = center.radius
     const length = Math.hypot(dx, dy)
     const scale = Math.min(1, length / radius)
     const input = length > 0 ? { x: (dx / length) * scale, y: (dy / length) * scale } : { x: 0, y: 0 }
@@ -519,31 +637,58 @@ function MoveJoystick({ disabled, intro, onChange, style }: { disabled: boolean;
   }
 
   const reset = () => {
+    activeBaseRef.current = null
+    setActiveBase(null)
     setStick({ x: 0, y: 0 })
     onChange({ x: 0, y: 0 })
   }
 
+  const startDrag = (event: React.PointerEvent<HTMLDivElement>) => {
+    if (disabled) return
+    const rect = zone.current?.getBoundingClientRect()
+    if (!rect) return
+    const base = pointerToDesignPoint(event, rect, zoneConfig)
+    activeBaseRef.current = base
+    setActiveBase(base)
+    update(event, base)
+  }
+
   return (
-    <div className={`joystick-wrap ${intro ? 'is-intro' : ''}`} style={style}>
+    <>
       <div
-        className={`gesture-joystick ${disabled ? 'disabled' : ''}`}
+        className={`joystick-zone ${disabled ? 'disabled' : ''}`}
         onPointerCancel={reset}
         onPointerDown={(event) => {
           event.currentTarget.setPointerCapture(event.pointerId)
-          update(event)
+          startDrag(event)
         }}
         onPointerLeave={reset}
         onPointerMove={(event) => {
           if (event.buttons > 0 || event.pointerType === 'touch') update(event)
         }}
         onPointerUp={reset}
-        ref={pad}
+        ref={zone}
         role="presentation"
-      >
-        <div className="gesture-joystick-stick" style={intro ? undefined : { transform: `translate(${stick.x * 30}px, ${stick.y * 30}px)` }} />
+        style={zoneStyle}
+      />
+      <div className={`joystick-wrap ${intro && !activeBase ? 'is-intro' : ''} ${activeBase ? 'is-active' : ''} ${hidden ? 'is-keyboard-hidden' : ''}`} style={activeBase ? circleStyle({ ...activeBase, radius: center.radius }) : style}>
+        <div className={`gesture-joystick ${disabled ? 'disabled' : ''}`}>
+          <div className="gesture-joystick-stick" style={intro && !activeBase ? undefined : { transform: `translate(${stick.x * 30}px, ${stick.y * 30}px)` }} />
+        </div>
       </div>
-    </div>
+    </>
   )
+}
+
+function pointerToDesignPoint(
+  event: React.PointerEvent<HTMLDivElement>,
+  rect: DOMRect,
+  zone: { x: number; y: number; width: number; height: number },
+) {
+  return {
+    x: zone.x + ((event.clientX - rect.left) / rect.width) * zone.width,
+    y: zone.y + ((event.clientY - rect.top) / rect.height) * zone.height,
+  }
 }
 
 function CreditsModal({ onClose }: { onClose: () => void }) {

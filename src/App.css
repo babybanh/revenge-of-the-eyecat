@@ -335,7 +335,7 @@ a:focus-visible {
 .start-control-prompt {
   padding: 6px 11px;
   border-radius: 14px;
-  font-size: clamp(9px, 1.72cqw, 13px);
+  font-size: clamp(11px, 2.2223cqw, 16px);
   font-weight: 650;
   line-height: 1.12;
 }
@@ -348,15 +348,41 @@ a:focus-visible {
   position: absolute;
   z-index: 50;
   padding: 0;
+  border-radius: clamp(12px, 3.0556cqw, 22px);
+  background: linear-gradient(#fff7e8, var(--gold));
+  box-shadow:
+    0 clamp(3px, 0.8334cqw, 6px) 0 var(--button-shadow),
+    0 clamp(6px, 1.6667cqw, 12px) clamp(10px, 2.7778cqw, 20px) rgba(5, 8, 18, 0.18);
   font-size: clamp(7px, 2.0834cqw, 15px);
+  font-weight: 600;
   line-height: 1;
   white-space: nowrap;
   pointer-events: auto;
 }
 
+.control-button:active {
+  transform: translateY(clamp(1.5px, 0.4167cqw, 3px));
+  box-shadow:
+    0 clamp(1.5px, 0.4167cqw, 3px) 0 var(--button-shadow),
+    0 clamp(4px, 1.1112cqw, 8px) clamp(8px, 1.9445cqw, 14px) rgba(5, 8, 18, 0.16);
+}
+
 .music-button.active {
   background: linear-gradient(#fff7e8, var(--gold));
-  box-shadow: 0 6px 0 var(--button-shadow), 0 12px 22px rgba(5, 8, 18, 0.18);
+  box-shadow:
+    0 clamp(3px, 0.8334cqw, 6px) 0 var(--button-shadow),
+    0 clamp(6px, 1.6667cqw, 12px) clamp(10px, 2.7778cqw, 20px) rgba(5, 8, 18, 0.18);
+}
+
+.joystick-zone {
+  position: absolute;
+  z-index: 49;
+  pointer-events: auto;
+  touch-action: none;
+}
+
+.joystick-zone.disabled {
+  pointer-events: none;
 }
 
 .joystick-wrap {
@@ -364,7 +390,12 @@ a:focus-visible {
   z-index: 51;
   display: grid;
   place-items: center;
-  pointer-events: auto;
+  pointer-events: none;
+  transition: opacity 140ms ease;
+}
+
+.joystick-wrap.is-keyboard-hidden {
+  opacity: 0;
 }
 
 .gesture-joystick {
@@ -578,7 +609,7 @@ a:focus-visible {
 .credits-modal .modal-card {
   width: min(500px, calc(100% - 36px));
   gap: 0;
-  padding: 28px 30px 26px;
+  padding: 30px 34px 28px;
   color: var(--cocoa);
   background:
     radial-gradient(circle at 22% 14%, rgba(255, 255, 255, 0.9), transparent 30%),
@@ -589,12 +620,12 @@ a:focus-visible {
 }
 
 .credits-modal .modal-title {
-  max-width: 360px;
-  margin: 8px auto 22px;
-  padding: 0 40px;
+  max-width: 390px;
+  margin: 8px auto 20px;
+  padding: 0;
   color: #8f3c27;
-  font-size: clamp(18px, 3.5cqw, 25px);
-  line-height: 1.08;
+  font-size: 26px;
+  line-height: 1;
 }
 
 .credits-modal .modal-close {
@@ -604,29 +635,35 @@ a:focus-visible {
 }
 
 .credits-copy {
-  margin: 16px auto 0;
+  margin: 18px auto 0;
   max-width: 400px;
   color: var(--cocoa-soft);
-  font-size: clamp(12px, 2.1cqw, 15px);
-  line-height: 1.32;
+  font-size: 16px;
+  line-height: 1.35;
+}
+
+.credits-copy + .credits-copy {
+  margin-top: 18px;
 }
 
 .credits-copy a {
   color: #c9562e;
-  font-size: clamp(16px, 2.6cqw, 19px);
+  margin-top: 2px;
+  font-size: 19px;
 }
 
 .concept-modal .modal-card {
-  width: min(430px, calc(100% - 36px));
+  width: min(482px, calc(100% - 36px));
   gap: 10px;
+  transform: translateY(-22px);
 }
 
 .concept-image {
   display: block;
-  width: min(var(--concept-image-width, 430px), 100%, 52vh);
+  width: min(var(--concept-image-width, 462px), 100%, 56vh);
   height: auto;
   max-width: 100%;
-  max-height: min(var(--concept-image-max-height, 392px), 52vh);
+  max-height: min(var(--concept-image-max-height, 422px), 56vh);
   margin: 0 auto;
   aspect-ratio: 1 / 1;
   object-fit: contain;
@@ -836,7 +873,36 @@ a:focus-visible {
   }
 
   .concept-image {
-    width: min(var(--concept-image-width, 300px), 100%, 54vh);
-    max-height: min(var(--concept-image-max-height, 430px), 54vh);
+    width: min(var(--concept-image-width, 340px), 100%, 56vh);
+    max-height: min(var(--concept-image-max-height, 430px), 56vh);
+  }
+
+  .credits-modal .modal-card {
+    width: min(500px, calc(100% - 36px));
+    padding: 30px 34px 28px;
+  }
+
+  .credits-modal .modal-title {
+    max-width: 390px;
+    margin: 8px auto 20px;
+    padding: 0;
+    font-size: 26px;
+    line-height: 1;
+  }
+
+  .credits-copy {
+    margin: 18px auto 0;
+    max-width: 400px;
+    font-size: 16px;
+    line-height: 1.35;
+  }
+
+  .credits-copy + .credits-copy {
+    margin-top: 18px;
+  }
+
+  .credits-copy a {
+    margin-top: 2px;
+    font-size: 19px;
   }
 }
