@@ -13,6 +13,7 @@ const BACKGROUND_PATH = gameConfig.assets.background
 const MUSIC_PATH = gameConfig.assets.music
 const HEART = '\u2665'
 const ZERO_INPUT: JoystickInput = { x: 0, y: 0 }
+const PHASER_WORLD_SIZE = 672
 
 type MapPreset = {
   id: string
@@ -20,6 +21,12 @@ type MapPreset = {
   tagline: string
   mapText: string
   settings: PacRescueSettings
+}
+
+type HeartLossPopup = {
+  id: number
+  x?: number
+  y?: number
 }
 
 const baseSettings = sanitizeSettings({
@@ -96,7 +103,7 @@ export default function App() {
   const [musicEnabled, setMusicEnabled] = useState(true)
   const [musicStarted, setMusicStarted] = useState(false)
   const [audioUnlocked, setAudioUnlocked] = useState(false)
-  const [heartLossId, setHeartLossId] = useState(0)
+  const [heartLossPopup, setHeartLossPopup] = useState<HeartLossPopup | null>(null)
   const [showCredits, setShowCredits] = useState(false)
   const [showConcept, setShowConcept] = useState(false)
   const [devOpen, setDevOpen] = useState(false)
@@ -250,7 +257,11 @@ export default function App() {
     if (runtime.keysCollected > previous.keysCollected) playSfx('key')
     if (runtime.lives < previous.lives) {
       playSfx('hit')
-      setHeartLossId((id) => id + 1)
+      setHeartLossPopup((popup) => ({
+        id: (popup?.id ?? 0) + 1,
+        x: previous.playerScreenPosition?.x ?? runtime.playerScreenPosition?.x,
+        y: previous.playerScreenPosition?.y ?? runtime.playerScreenPosition?.y,
+      }))
     }
     if (runtime.status === 'won' && previous.status !== 'won') playSfx('win')
     if (runtime.status === 'gameover' && previous.status !== 'gameover') playSfx('gameover')
@@ -274,7 +285,7 @@ export default function App() {
     setStarted(shouldStart)
     setLevelPaused(shouldStart && shouldPause)
     setInstructionVisible(false)
-    setHeartLossId(0)
+    setHeartLossPopup(null)
     setRestartToken((token) => token + 1)
   }, [])
 
@@ -362,7 +373,9 @@ export default function App() {
         <section className="playfield-wrap" style={rectStyle(gameConfig.layout.playfield)}>
           <div className="playfield">
             {started ? <div className="game-host" ref={hostRef} /> : <StartPreview />}
-            {heartLossId > 0 ? <div className="heart-loss-popup" key={heartLossId} aria-hidden="true">-1 Heart</div> : null}
+            {heartLossPopup ? (
+              <div className="heart-loss-popup" key={heartLossPopup.id} style={heartLossStyle(heartLossPopup)} aria-hidden="true">-1 Heart</div>
+            ) : null}
           </div>
         </section>
 
@@ -370,7 +383,6 @@ export default function App() {
         {started && levelPaused ? (
           <div className="level-ready-prompt" style={centeredTextStyle(gameConfig.layout.eventPrompt)}>
             <strong>{activePreset.name}</strong>
-            <span>Use the joystick or arrow keys to move Eyecat.</span>
           </div>
         ) : null}
         {started && instructionVisible && !levelPaused ? (
@@ -689,6 +701,14 @@ function squareCenterStyle(square: { x: number; y: number; size: number }): CSSP
     width: square.size,
     height: square.size,
   })
+}
+
+function heartLossStyle(popup: HeartLossPopup): CSSProperties {
+  if (popup.x === undefined || popup.y === undefined) return {}
+  return {
+    left: `${(popup.x / PHASER_WORLD_SIZE) * 100}%`,
+    top: `${((popup.y - 40) / PHASER_WORLD_SIZE) * 100}%`,
+  }
 }
 
 function toPercent(value: number, total: number): string {

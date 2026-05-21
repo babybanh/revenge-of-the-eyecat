@@ -429,6 +429,7 @@ export class PacRescueScene extends Phaser.Scene {
 
   private emitRuntime(force: boolean): void {
     const progress = this.progress()
+    const playerPosition = actorPosition(this.player, this.level)
     const instruction = instructionForProgress(
       progress,
       this.settings,
@@ -441,6 +442,10 @@ export class PacRescueScene extends Phaser.Scene {
       message: this.options.editorMode ? 'Editing map. Switch to Play to move.' : this.message,
       instruction: instruction.text,
       instructionPhase: instruction.phase,
+      playerScreenPosition: {
+        x: this.cx(playerPosition.x),
+        y: this.cy(playerPosition.y),
+      },
       coinGoal: rescueCoinGoal(progress.totalCoins, this.settings.coinGoalPercent),
       requiredKeys: this.requiredKeys(),
       lives: this.lives,

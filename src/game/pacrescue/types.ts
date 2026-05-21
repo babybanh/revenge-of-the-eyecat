@@ -97,6 +97,7 @@ export type RuntimeSnapshot = RescueProgress & {
   message: string
   instruction: string
   instructionPhase: InstructionPhase
+  playerScreenPosition?: GridPoint
   coinGoal: number
   requiredKeys: number
   lives: number
