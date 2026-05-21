@@ -125,6 +125,24 @@ export function chooseGhostStep(level: PacRescueLevel, ghostTile: GridPoint, pla
   return legalStepDirections(level, ghostTile, isBlocked)[0] ?? stoppedDirection
 }
 
+export function chooseFleeStep(level: PacRescueLevel, ghostTile: GridPoint, playerTile: GridPoint, isBlocked?: TileBlocker): Direction {
+  const legal = legalStepDirections(level, ghostTile, isBlocked)
+  if (legal.length === 0) {
+    return stoppedDirection
+  }
+
+  return [...legal].sort((a, b) => {
+    const nextA = stepTarget(level, ghostTile, a, isBlocked) ?? ghostTile
+    const nextB = stepTarget(level, ghostTile, b, isBlocked) ?? ghostTile
+    const distanceA = bfsDistance(level, nextA, playerTile) ?? Number.POSITIVE_INFINITY
+    const distanceB = bfsDistance(level, nextB, playerTile) ?? Number.POSITIVE_INFINITY
+    if (distanceA !== distanceB) {
+      return distanceB - distanceA
+    }
+    return euclideanDistance(nextB, playerTile) - euclideanDistance(nextA, playerTile)
+  })[0]
+}
+
 export function choosePatrollerStep(level: PacRescueLevel, ghostTile: GridPoint, current: Direction, turnSeed: number, shouldConsiderTurn: boolean, isBlocked?: TileBlocker): Direction {
   const legal = legalStepDirections(level, ghostTile, isBlocked)
   if (legal.length === 0) {
@@ -265,6 +283,48 @@ export function chooseSafeRespawnTile(
   return bestTile
 }
 
+export function chooseOppositeCornerRespawnTile(
+  level: PacRescueLevel,
+  playerTile: GridPoint,
+  hazardTiles: GridPoint[] = [],
+  isBlocked?: TileBlocker,
+): GridPoint {
+  const targetCorner = {
+    x: playerTile.x < level.width / 2 ? level.width - 2 : 1,
+    y: playerTile.y < level.height / 2 ? level.height - 2 : 1,
+  }
+  const hazards = hazardTiles.filter((tile) => (
+    tile.x >= 0
+    && tile.y >= 0
+    && tile.x < level.width
+    && tile.y < level.height
+    && !isWall(level, tile.x, tile.y)
+  ))
+
+  let bestTile: GridPoint | undefined
+  let bestCornerDistance = Number.POSITIVE_INFINITY
+  let bestSafety = Number.NEGATIVE_INFINITY
+
+  for (let y = 0; y < level.height; y += 1) {
+    for (let x = 0; x < level.width; x += 1) {
+      const tile = { x, y }
+      if (isWall(level, x, y) || isBlocked?.(tile) || sameTile(tile, playerTile)) {
+        continue
+      }
+
+      const cornerDistance = bfsDistance(level, tile, targetCorner) ?? euclideanDistance(tile, targetCorner)
+      const safety = hazards.length > 0 ? nearestHazardDistance(level, tile, hazards, isBlocked) : euclideanDistance(tile, playerTile)
+      if (!bestTile || cornerDistance < bestCornerDistance || (cornerDistance === bestCornerDistance && safety > bestSafety)) {
+        bestTile = tile
+        bestCornerDistance = cornerDistance
+        bestSafety = safety
+      }
+    }
+  }
+
+  return bestTile ?? chooseSafeRespawnTile(level, targetCorner, [playerTile, ...hazards], 4, isBlocked)
+}
+
 export function crossedTiles(previousA: GridPoint, currentA: GridPoint, previousB: GridPoint, currentB: GridPoint): boolean {
   return sameTile(previousA, currentB) && sameTile(currentA, previousB)
 }
@@ -300,4 +360,8 @@ function nearestHazardDistance(level: PacRescueLevel, tile: GridPoint, hazards: 
     nearest = Math.min(nearest, bfsDistance(level, tile, hazard) ?? Number.POSITIVE_INFINITY)
   }
   return nearest
+}
+
+function euclideanDistance(a: GridPoint, b: GridPoint): number {
+  return Math.hypot(a.x - b.x, a.y - b.y)
 }

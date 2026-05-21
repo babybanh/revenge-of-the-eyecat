@@ -25,7 +25,9 @@ import {
   actorPosition,
   advanceStep,
   beginStep,
+  chooseFleeStep,
   chooseGhostStep,
+  chooseOppositeCornerRespawnTile,
   choosePatrollerStep,
   chooseSafeRespawnTile,
   createStepActor,
@@ -50,6 +52,7 @@ export type PacRescueSceneOptions = {
   editorMode: boolean
   selectedTile: TileSymbol
   getJoystick: () => JoystickInput
+  isPaused?: () => boolean
   onRuntime: (snapshot: RuntimeSnapshot) => void
   onTileClick: (x: number, y: number) => void
 }
@@ -72,6 +75,7 @@ const WORLD_WIDTH = 672
 const WORLD_HEIGHT = 672
 const MAX_LIVES = 3
 const RESPAWN_INVINCIBLE_SECONDS = 1.5
+const POWERED_CHASER_SPEED_MULTIPLIER = 1.15
 const PLAYER_COLOR = 0xffd84d
 const COIN_COLOR = 0xf3df84
 const VACUUM_ORANGE_COIN_COLOR = 0xe85b2e
@@ -134,7 +138,9 @@ export class PacRescueScene extends Phaser.Scene {
     this.load.image(EYE_CAT_BRONZE_PLAYER_KEY, '/characters/player-eye-cat-bronze.png')
     this.load.image(EYE_CAT_WHITE_PLAYER_KEY, '/characters/player-eye-cat-white.png')
     this.load.image(EYE_CAT_PLAIN_PLAYER_KEY, '/characters/player-eye-cat-plain.png')
-    this.load.image(COIN_SPRITE_KEY, '/characters/character-coin.png')
+    if (this.settings.coinSkin === 'coin') {
+      this.load.image(COIN_SPRITE_KEY, '/characters/character-coin.png')
+    }
     this.load.image(RESCUE_CAT_KEY, '/characters/character-white-cat.png')
   }
 
@@ -170,7 +176,7 @@ export class PacRescueScene extends Phaser.Scene {
     const delta = Math.min(0.05, deltaMs / 1000)
     this.elapsed += delta
 
-    if (this.status === 'playing' && !this.options.editorMode) {
+    if (this.status === 'playing' && !this.options.editorMode && !this.options.isPaused?.()) {
       this.frightRemaining = Math.max(0, this.frightRemaining - delta)
       this.invincibleRemaining = Math.max(0, this.invincibleRemaining - delta)
       const previousPlayerTile = { ...this.player.tile }
@@ -265,7 +271,7 @@ export class PacRescueScene extends Phaser.Scene {
     }
     if (this.powerPellets.delete(key)) {
       this.frightRemaining = this.settings.frightDuration
-      this.message = 'Power pellet active. Chasers are edible, but they still chase.'
+      this.message = 'Power pellet active. Vacuums are edible and trying to escape.'
     }
   }
 
@@ -282,7 +288,7 @@ export class PacRescueScene extends Phaser.Scene {
 
       if (chaser.inactive > 0) {
         const inactive = Math.max(0, chaser.inactive - delta)
-        nextChasers.push(inactive > 0 ? { ...chaser, inactive } : { ...chaser, inactive, tile: { ...chaser.spawn }, nextTile: { ...chaser.spawn }, direction: stoppedDirection, moveProgress: 0 })
+        nextChasers.push(inactive > 0 ? { ...chaser, inactive } : { ...chaser, inactive, nextTile: { ...chaser.tile }, direction: stoppedDirection, moveProgress: 0 })
         continue
       }
 
@@ -291,7 +297,9 @@ export class PacRescueScene extends Phaser.Scene {
       nextChaser.turnClock = Math.max(0, nextChaser.turnClock - delta)
       if (!isMoving(nextChaser)) {
         const shouldTurn = nextChaser.turnClock <= 0
-        const direction = nextChaser.ghostType === 'chaser'
+        const direction = this.frightRemaining > 0
+          ? chooseFleeStep(this.level, nextChaser.tile, this.player.tile, blocksPrincessZone)
+          : nextChaser.ghostType === 'chaser'
           ? chooseGhostStep(this.level, nextChaser.tile, this.player.tile, blocksPrincessZone)
           : choosePatrollerStep(this.level, nextChaser.tile, nextChaser.direction, this.elapsed + nextChaser.tile.x + nextChaser.tile.y, shouldTurn, blocksPrincessZone)
         nextChaser = {
@@ -303,18 +311,29 @@ export class PacRescueScene extends Phaser.Scene {
 
       nextChaser = {
         ...nextChaser,
-        ...advanceStep(nextChaser, this.settings.chaserSpeed, delta).actor,
+        ...advanceStep(nextChaser, this.chaserMoveSpeed(), delta).actor,
       }
 
       const collision = resolveTileCollision(previousPlayerTile, this.player.tile, previousGhostTile, nextChaser.tile, this.frightRemaining > 0)
       const lifeHit = collision === 'none' ? undefined : resolveLifeHit(this.lives, collision === 'powered-eat', this.invincibleRemaining > 0)
       if (lifeHit?.type === 'eat-ghost') {
+        const respawnTile = chooseOppositeCornerRespawnTile(
+          this.level,
+          this.player.tile,
+          [
+            ...this.chasers.flatMap((other, otherIndex) => (
+              otherIndex === index ? [] : [other.tile, other.nextTile]
+            )),
+            this.player.tile,
+          ],
+          blocksPrincessZone,
+        )
         this.chasersEaten += 1
-        this.message = 'Vacuum stunned. It will respawn in a moment.'
+        this.message = 'Vacuum eaten. It will reappear away from you.'
         nextChasers.push({
           ...nextChaser,
-          tile: { ...nextChaser.spawn },
-          nextTile: { ...nextChaser.spawn },
+          tile: { ...respawnTile },
+          nextTile: { ...respawnTile },
           direction: stoppedDirection,
           moveProgress: 0,
           inactive: 2.5,
@@ -361,6 +380,12 @@ export class PacRescueScene extends Phaser.Scene {
     this.invincibleRemaining = RESPAWN_INVINCIBLE_SECONDS
     this.instructionPhase = 'lost-life'
     this.message = `${this.lives} heart${this.lives === 1 ? '' : 's'} left.`
+  }
+
+  private chaserMoveSpeed(): number {
+    return this.frightRemaining > 0
+      ? this.settings.chaserSpeed * POWERED_CHASER_SPEED_MULTIPLIER
+      : this.settings.chaserSpeed
   }
 
   private checkHostage(): void {
@@ -670,8 +695,7 @@ export class PacRescueScene extends Phaser.Scene {
       const sprite = this.chaserSprites[index] ?? this.add.image(0, 0, VACUUM_ENEMY_KEY).setOrigin(0.5).setDepth(2)
       this.chaserSprites[index] = sprite
 
-      const pulse = this.frightRemaining > 0 ? 1 + Math.sin(this.elapsed * 11 + index) * 0.08 : 1
-      const size = this.boardRect.tile * (chaser.inactive > 0 ? 1 : 1.34) * pulse
+      const size = this.boardRect.tile * (chaser.inactive > 0 ? 1 : 1.34)
       const movingUp = chaser.direction.y < 0
       sprite
         .setVisible(true)

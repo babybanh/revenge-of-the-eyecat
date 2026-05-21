@@ -5,7 +5,9 @@ import {
   advanceStep,
   beginStep,
   bfsDistance,
+  chooseFleeStep,
   chooseGhostStep,
+  chooseOppositeCornerRespawnTile,
   choosePatrollerStep,
   chooseSafeRespawnTile,
   createStepActor,
@@ -189,5 +191,37 @@ describe('tile-step pac rescue movement', () => {
     ].join('\n'))
 
     expect(choosePatrollerStep(level, { x: 1, y: 1 }, { x: -1, y: 0 }, 0, true)).toEqual({ x: 1, y: 0 })
+  })
+
+  it('chooses a flee step that increases distance from the player', () => {
+    const level = parseMapText([
+      '#######',
+      '#P   H#',
+      '#  C  #',
+      '#     #',
+      '#######',
+    ].join('\n'))
+
+    const direction = chooseFleeStep(level, { x: 3, y: 2 }, level.playerStart)
+    const target = stepTarget(level, { x: 3, y: 2 }, direction)
+
+    expect(target).toBeDefined()
+    expect(bfsDistance(level, target!, level.playerStart)).toBeGreaterThan(bfsDistance(level, { x: 3, y: 2 }, level.playerStart)!)
+  })
+
+  it('respawns eaten ghosts near the opposite corner from the player', () => {
+    const level = parseMapText([
+      '#########',
+      '#P     H#',
+      '#       #',
+      '#      C#',
+      '#########',
+    ].join('\n'))
+
+    const respawn = chooseOppositeCornerRespawnTile(level, level.playerStart, level.chasers)
+
+    expect(respawn.x).toBeGreaterThanOrEqual(5)
+    expect(respawn.y).toBeGreaterThanOrEqual(2)
+    expect(isWall(level, respawn.x, respawn.y)).toBe(false)
   })
 })

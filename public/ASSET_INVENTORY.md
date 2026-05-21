@@ -6,7 +6,7 @@
 - `characters/player-eye-cat-plain.png` - primary borderless Eyecat player art.
 - `characters/character-vacuum.png` - vacuum enemy art.
 - `characters/character-white-cat.png` - cat hostage art.
-- `characters/character-coin.png` - coin collectible art.
+- Coins render as yellow dots in Phaser; no image is needed for the normal coin pass.
 
 ## Audio
 
@@ -19,3 +19,7 @@
 - `backgrounds/lab-glow.png`
 
 Keep raw/source artwork outside this browser-ready folder. This folder should contain only game-ready files.
+
+## Optional Tuning Assets
+
+- `characters/character-coin.png` - older coin collectible art, kept only for hidden tuning.

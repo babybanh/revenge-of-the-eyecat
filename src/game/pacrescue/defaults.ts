@@ -115,7 +115,7 @@ export const defaultPacRescueSettings: PacRescueSettings = {
   cameraViewTiles: 0,
   enemySkin: 'vacuum',
   playerSkin: 'eye-cat-plain',
-  coinSkin: 'coin',
+  coinSkin: 'dot',
   mazeFloor: 'transparent',
   mazeWall: 'spotlight-cream',
   stageBackground: 'lab-final-ruin-2',

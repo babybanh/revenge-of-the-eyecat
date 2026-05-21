@@ -4,6 +4,7 @@ import './App.css'
 import { defaultPacRescueLevelMaps, defaultPacRescueSettings } from './game/pacrescue/defaults'
 import { capMapTextCounts, mapCounts, parseMapText, rebalanceMapText, sanitizeSettings } from './game/pacrescue/map'
 import { createDelayedKeyState } from './game/pacrescue/objective'
+import { hasNextLevel, nextLevelIndex } from './game/pacrescue/progression'
 import type { MazeFloor, MazeWall, PacRescueSettings, RuntimeSnapshot } from './game/pacrescue/types'
 import { gameConfig } from './game/config/gameConfig'
 import { PacRescueScene, type JoystickInput } from './game/scenes/PacRescueScene'
@@ -11,6 +12,7 @@ import { PacRescueScene, type JoystickInput } from './game/scenes/PacRescueScene
 const BACKGROUND_PATH = gameConfig.assets.background
 const MUSIC_PATH = gameConfig.assets.music
 const HEART = '\u2665'
+const ZERO_INPUT: JoystickInput = { x: 0, y: 0 }
 
 type MapPreset = {
   id: string
@@ -25,7 +27,7 @@ const baseSettings = sanitizeSettings({
   cameraViewTiles: 0,
   enemySkin: 'vacuum',
   playerSkin: 'eye-cat-plain',
-  coinSkin: 'coin',
+  coinSkin: 'dot',
   mazeFloor: 'transparent',
   mazeWall: 'spotlight-cream',
   stageBackground: 'lab-final-ruin-2',
@@ -79,12 +81,17 @@ export default function App() {
   const musicEnabledRef = useRef(true)
   const musicStartedRef = useRef(false)
   const joystickRef = useRef<JoystickInput>({ x: 0, y: 0 })
+  const levelPausedRef = useRef(false)
+  const keyboardStartRef = useRef(false)
   const previousRuntime = useRef<RuntimeSnapshot | null>(null)
+  const instructionTimer = useRef<number | undefined>(undefined)
   const [activeIndex, setActiveIndex] = useState(0)
   const [mapText, setMapText] = useState(mapPresets[0].mapText)
   const [settings, setSettings] = useState(mapPresets[0].settings)
   const [runtime, setRuntime] = useState(() => createInitialRuntime(mapText, settings))
   const [started, setStarted] = useState(false)
+  const [levelPaused, setLevelPaused] = useState(false)
+  const [instructionVisible, setInstructionVisible] = useState(false)
   const [restartToken, setRestartToken] = useState(0)
   const [musicEnabled, setMusicEnabled] = useState(true)
   const [musicStarted, setMusicStarted] = useState(false)
@@ -96,6 +103,13 @@ export default function App() {
   const activePreset = mapPresets[activeIndex] ?? mapPresets[0]
   const counts = useMemo(() => mapCounts(mapText), [mapText])
   const finished = runtime.status === 'won' || runtime.status === 'gameover'
+  const canAdvance = hasNextLevel(activeIndex, mapPresets.length)
+  const shellStyle = useMemo(() => ({
+    '--stage-bg': `url("${BACKGROUND_PATH}")`,
+    '--spot-joy-x': `${toPercent(gameConfig.layout.joystick.x, gameConfig.layout.designWidth)}`,
+    '--spot-joy-y': `${toPercent(gameConfig.layout.joystick.y, gameConfig.layout.designHeight)}`,
+    '--spot-joy-r': `${toPercent(gameConfig.layout.joystick.radius, gameConfig.layout.designWidth)}`,
+  }) as CSSProperties, [])
 
   const unlockAudio = useCallback(() => {
     if (!audioContextRef.current) {
@@ -113,6 +127,16 @@ export default function App() {
     musicStartedRef.current = musicStarted
   }, [musicEnabled, musicStarted])
 
+  useEffect(() => {
+    levelPausedRef.current = levelPaused
+  }, [levelPaused])
+
+  useEffect(() => () => {
+    if (instructionTimer.current) {
+      window.clearTimeout(instructionTimer.current)
+    }
+  }, [])
+
   const startMusicFromMovement = useCallback(() => {
     const audio = musicRef.current
     if (!audio || !musicEnabledRef.current || musicStartedRef.current) return
@@ -122,6 +146,17 @@ export default function App() {
       .then(() => setMusicStarted(true))
       .catch(() => setMusicStarted(false))
   }, [])
+
+  const startGame = useCallback((initialInput: JoystickInput = ZERO_INPUT) => {
+    unlockAudio()
+    previousRuntime.current = null
+    joystickRef.current = { ...initialInput }
+    setRuntime(createInitialRuntime(mapText, settings))
+    setStarted(true)
+    setLevelPaused(false)
+    setInstructionVisible(false)
+    setRestartToken((token) => token + 1)
+  }, [mapText, settings, unlockAudio])
 
   useEffect(() => {
     const image = new Image()
@@ -142,15 +177,35 @@ export default function App() {
         setDevOpen((open) => !open)
         return
       }
-      if (started && isMovementKey(event.key)) {
+
+      if (isMovementKey(event.key)) {
         unlockAudio()
         startMusicFromMovement()
+        if (!started && !event.repeat && !showCredits && !showConcept) {
+          event.preventDefault()
+          keyboardStartRef.current = true
+          startGame(inputFromKey(event.key))
+        } else if (started && levelPaused && !showCredits && !showConcept) {
+          event.preventDefault()
+          setLevelPaused(false)
+        }
+      }
+    }
+
+    const handleKeyUp = (event: KeyboardEvent) => {
+      if (keyboardStartRef.current && isMovementKey(event.key)) {
+        joystickRef.current = ZERO_INPUT
+        keyboardStartRef.current = false
       }
     }
 
     window.addEventListener('keydown', handleKey)
-    return () => window.removeEventListener('keydown', handleKey)
-  }, [started, musicEnabled, audioUnlocked, startMusicFromMovement, unlockAudio])
+    window.addEventListener('keyup', handleKeyUp)
+    return () => {
+      window.removeEventListener('keydown', handleKey)
+      window.removeEventListener('keyup', handleKeyUp)
+    }
+  }, [levelPaused, started, showCredits, showConcept, startGame, startMusicFromMovement, unlockAudio])
 
   useEffect(() => {
     if (!started || !hostRef.current) return
@@ -173,6 +228,7 @@ export default function App() {
         editorMode: false,
         selectedTile: ' ',
         getJoystick: () => joystickRef.current,
+        isPaused: () => levelPausedRef.current,
         onRuntime: (snapshot) => setRuntime({ ...snapshot }),
         onTileClick: () => undefined,
       }),
@@ -195,35 +251,53 @@ export default function App() {
     if (runtime.lives < previous.lives) playSfx('hit')
     if (runtime.status === 'won' && previous.status !== 'won') playSfx('win')
     if (runtime.status === 'gameover' && previous.status !== 'gameover') playSfx('gameover')
-  }, [runtime, audioUnlocked])
+    if (started && !levelPaused && shouldShowInstructionNotice(previous, runtime)) {
+      setInstructionVisible(true)
+      if (instructionTimer.current) {
+        window.clearTimeout(instructionTimer.current)
+      }
+      instructionTimer.current = window.setTimeout(() => setInstructionVisible(false), 2200)
+    }
+  }, [runtime, audioUnlocked, levelPaused, started])
 
-  const startGame = () => {
-    unlockAudio()
-    previousRuntime.current = null
-    joystickRef.current = { x: 0, y: 0 }
-    setRuntime(createInitialRuntime(mapText, settings))
-    setStarted(true)
-    setRestartToken((token) => token + 1)
-  }
-
-  const restart = () => {
-    joystickRef.current = { x: 0, y: 0 }
-    previousRuntime.current = null
-    setRuntime(createInitialRuntime(mapText, settings))
-    setStarted(true)
-    setRestartToken((token) => token + 1)
-  }
-
-  const switchPreset = (index: number) => {
+  const switchPreset = useCallback((index: number, shouldStart: boolean, shouldPause = false) => {
     const preset = mapPresets[index] ?? mapPresets[0]
-    joystickRef.current = { x: 0, y: 0 }
+    joystickRef.current = ZERO_INPUT
     previousRuntime.current = null
     setActiveIndex(index)
     setMapText(preset.mapText)
     setSettings(preset.settings)
     setRuntime(createInitialRuntime(preset.mapText, preset.settings))
+    setStarted(shouldStart)
+    setLevelPaused(shouldStart && shouldPause)
+    setInstructionVisible(false)
     setRestartToken((token) => token + 1)
-  }
+  }, [])
+
+  const restartPack = () => switchPreset(0, true, true)
+
+  useEffect(() => {
+    if (runtime.status !== 'won' || !canAdvance) {
+      return undefined
+    }
+
+    const nextIndex = nextLevelIndex(activeIndex, mapPresets.length)
+    if (nextIndex === undefined) {
+      return undefined
+    }
+
+    const timer = window.setTimeout(() => switchPreset(nextIndex, true, true), 850)
+    return () => window.clearTimeout(timer)
+  }, [activeIndex, canAdvance, runtime.status, switchPreset])
+
+  useEffect(() => {
+    if (runtime.status !== 'gameover') {
+      return undefined
+    }
+
+    const timer = window.setTimeout(() => switchPreset(0, true, true), 1100)
+    return () => window.clearTimeout(timer)
+  }, [runtime.status, switchPreset])
 
   const updateSettings = (patch: Partial<PacRescueSettings>) => {
     setSettings((current) => sanitizeSettings({ ...current, ...patch }))
@@ -253,6 +327,12 @@ export default function App() {
     if (Math.hypot(input.x, input.y) > 0.12) {
       unlockAudio()
       startMusicFromMovement()
+      if (!started && !showCredits && !showConcept) {
+        keyboardStartRef.current = false
+        startGame(input)
+      } else if (started && levelPaused && !showCredits && !showConcept) {
+        setLevelPaused(false)
+      }
     }
   }
 
@@ -264,12 +344,12 @@ export default function App() {
   }
 
   return (
-    <main className="page-shell" style={{ '--stage-bg': `url("${BACKGROUND_PATH}")` } as CSSProperties}>
+    <main className="page-shell" style={shellStyle}>
       <audio ref={musicRef} preload="auto" src={MUSIC_PATH} />
       <section className={`game-shell ${started ? 'is-playing' : 'is-intro'}`} aria-label="Revenge of the Eyecat game">
         {loading ? <div className="loading-screen" aria-hidden="true" /> : null}
 
-        <header className="game-topbar">
+        <header className="game-topbar" style={rectStyle(gameConfig.layout.topBar)}>
           <button className="title-button" type="button" onClick={() => setShowConcept(true)} title="View original game idea">
             <span>{gameConfig.copy.title}</span>
             <small>{activePreset.name}</small>
@@ -286,42 +366,44 @@ export default function App() {
           </div>
         </header>
 
-        <section className="playfield-wrap">
+        <section className="playfield-wrap" style={rectStyle(gameConfig.layout.playfield)}>
           <div className="playfield">
             {started ? <div className="game-host" ref={hostRef} /> : <StartPreview />}
             {finished ? (
               <div className={`result-panel result-${runtime.status}`} role="dialog" aria-live="assertive">
-                <h2>{runtime.status === 'won' ? 'Cat Hostage Rescued' : 'Eyecat Caught'}</h2>
-                <p>{runtime.status === 'won' ? 'The ruin is clear for now.' : runtime.message}</p>
-                <button type="button" onClick={restart}>Play Again</button>
+                <h2>{runtime.status === 'won' ? 'Hostage Rescued' : 'Caught'}</h2>
+                <p>{runtime.status === 'won' ? (canAdvance ? `${activePreset.name} cleared. Preparing the next rescue.` : 'All current levels are clear.') : 'No hearts left. Returning to Level 1.'}</p>
+                {runtime.status === 'won' && !canAdvance ? (
+                  <div className="result-actions">
+                    <button type="button" onClick={restartPack}>Try Again</button>
+                  </div>
+                ) : null}
               </div>
             ) : null}
           </div>
         </section>
 
-        <footer className="bottom-controls">
-          <div className={`instruction-panel phase-${runtime.instructionPhase}`}>
-            <strong>{started ? runtime.instruction : activePreset.tagline}</strong>
-            <span>{started ? runtime.message : gameConfig.copy.startHint}</span>
+        <footer className="bottom-controls" style={rectStyle(gameConfig.layout.bottomControls)} aria-hidden="true" />
+        {started && instructionVisible && !levelPaused ? (
+          <div className={`instruction-panel phase-${runtime.instructionPhase}`} style={centeredTextStyle(gameConfig.layout.eventPrompt)}>
+            <span>{compactInstruction(runtime)}</span>
           </div>
-          <div className="button-row">
-            <button type="button" onClick={() => setShowCredits(true)}>{gameConfig.copy.creditsLabel}</button>
-            <button className={musicEnabled ? 'active' : ''} type="button" onClick={toggleMusic}>
-              {musicEnabled ? (musicStarted ? gameConfig.copy.musicOnLabel : gameConfig.copy.musicStartLabel) : gameConfig.copy.musicOffLabel}
-            </button>
-          </div>
-          <MoveJoystick disabled={!started || finished} onChange={handleJoystick} />
-        </footer>
+        ) : null}
+        <div className="button-row">
+          <button className="control-button credits-button" style={rectStyle(gameConfig.layout.buttons.credits)} type="button" onClick={() => setShowCredits(true)}>{gameConfig.copy.creditsLabel}</button>
+          <button className={`control-button music-button ${musicEnabled ? 'active' : ''}`} style={rectStyle(gameConfig.layout.buttons.music)} type="button" onClick={toggleMusic}>
+            {musicEnabled ? (musicStarted ? gameConfig.copy.musicOnLabel : gameConfig.copy.musicStartLabel) : gameConfig.copy.musicOffLabel}
+          </button>
+        </div>
+        <MoveJoystick disabled={finished || showCredits || showConcept} intro={!started} onChange={handleJoystick} style={circleStyle(gameConfig.layout.joystick)} />
 
         {!started ? (
-          <button className="start-overlay" type="button" onClick={startGame} onPointerDown={unlockAudio}>
+          <div className="start-overlay" aria-hidden="true">
             <span className="start-blur-layer" />
-            <img className="start-eyecat" src={gameConfig.assets.player} alt="" />
-            <img className="start-vacuum" src={gameConfig.assets.vacuum} alt="" />
-            <span className="start-prompt">{gameConfig.copy.startPrompt}</span>
-            <span className="start-joystick-hint"><i /></span>
-            <span className="start-tap">Tap to play</span>
-          </button>
+            <img className="start-eyecat" style={squareCenterStyle(gameConfig.layout.startArt.eyecat)} src={gameConfig.assets.player} alt="" />
+            <img className="start-vacuum" style={squareCenterStyle(gameConfig.layout.startArt.vacuum)} src={gameConfig.assets.vacuum} alt="" />
+            <span className="start-control-prompt" style={centeredTextStyle(gameConfig.layout.prompt)}>{gameConfig.copy.startPrompt}</span>
+          </div>
         ) : null}
 
         {showCredits ? <CreditsModal onClose={() => setShowCredits(false)} /> : null}
@@ -339,7 +421,7 @@ export default function App() {
               setRuntime(createInitialRuntime(capped, settings))
               setRestartToken((token) => token + 1)
             }}
-            onPreset={switchPreset}
+            onPreset={(index) => switchPreset(index, started)}
             onSettings={updateSettings}
             presets={mapPresets}
             settings={settings}
@@ -388,12 +470,12 @@ function StartPreview() {
   return (
     <div className="start-preview" aria-hidden="true">
       <img className="preview-cat" src={gameConfig.assets.hostage} alt="" />
-      <img className="preview-coin" src={gameConfig.assets.coin} alt="" />
+      <span className="preview-coin-dot" />
     </div>
   )
 }
 
-function MoveJoystick({ disabled, onChange }: { disabled: boolean; onChange: (input: JoystickInput) => void }) {
+function MoveJoystick({ disabled, intro, onChange, style }: { disabled: boolean; intro: boolean; onChange: (input: JoystickInput) => void; style: CSSProperties }) {
   const pad = useRef<HTMLDivElement | null>(null)
   const [stick, setStick] = useState<JoystickInput>({ x: 0, y: 0 })
 
@@ -417,7 +499,7 @@ function MoveJoystick({ disabled, onChange }: { disabled: boolean; onChange: (in
   }
 
   return (
-    <div className="joystick-wrap">
+    <div className={`joystick-wrap ${intro ? 'is-intro' : ''}`} style={style}>
       <div
         className={`gesture-joystick ${disabled ? 'disabled' : ''}`}
         onPointerCancel={reset}
@@ -443,10 +525,16 @@ function CreditsModal({ onClose }: { onClose: () => void }) {
   return (
     <div className="modal-overlay credits-modal" role="dialog" aria-modal="true" aria-label="Credits">
       <div className="modal-card">
-        <button className="modal-close" type="button" onClick={onClose}>x</button>
-        <h2>{gameConfig.credits.contestTitle}</h2>
-        <p>{gameConfig.credits.studentCredit}</p>
-        <p>{gameConfig.credits.developerCredit}</p>
+        <button className="modal-close" type="button" onClick={onClose} aria-label="Close">×</button>
+        <a className="modal-title" href={gameConfig.credits.contestUrl} target="_blank" rel="noreferrer">{gameConfig.credits.contestTitle}</a>
+        <p className="credits-copy">
+          <span>Original music and characters by</span>
+          <a href={gameConfig.credits.youtubeUrl} target="_blank" rel="noreferrer">{gameConfig.credits.studentName}</a>
+        </p>
+        <p className="credits-copy">
+          <span>Game design and development by</span>
+          <a href={`mailto:${gameConfig.credits.designerEmail}`}>{gameConfig.credits.designerName}</a>
+        </p>
         <div className="credits-video">
           <iframe
             title="Cassia theme video"
@@ -455,10 +543,10 @@ function CreditsModal({ onClose }: { onClose: () => void }) {
             allowFullScreen
           />
         </div>
-        <a href={gameConfig.credits.youtubeUrl} target="_blank" rel="noreferrer">
+        <a className="credits-playlist-link" href={gameConfig.credits.youtubeUrl} target="_blank" rel="noreferrer">
           Cassia theme on YouTube
         </a>
-        <a href={gameConfig.credits.contestUrl} target="_blank" rel="noreferrer">
+        <a className="credits-playlist-link" href={gameConfig.credits.contestUrl} target="_blank" rel="noreferrer">
           PIK Composition Contest playlist
         </a>
       </div>
@@ -470,9 +558,9 @@ function ConceptModal({ onClose }: { onClose: () => void }) {
   return (
     <div className="modal-overlay concept-modal" role="dialog" aria-modal="true" aria-label="Original game idea">
       <div className="modal-card">
-        <button className="modal-close" type="button" onClick={onClose}>x</button>
-        <h2>Original Game Idea</h2>
-        <p>Eyecat slips through the ruin, collects enough power, and rescues the captured cat before the vacuum patrols close in.</p>
+        <button className="modal-close" type="button" onClick={onClose} aria-label="Close">×</button>
+        <div className="modal-title">Original Game Idea</div>
+        <p className="modal-copy">Eyecat slips through the ruin, collects enough power, and rescues the captured cat before the vacuum patrols close in.</p>
         <div className="concept-art-row">
           <img src={gameConfig.assets.player} alt="Borderless Eyecat" />
           <img src={gameConfig.assets.vacuum} alt="Vacuum enemy" />
@@ -559,6 +647,73 @@ function SelectField<T extends string>(props: { label: string; value: T; options
 
 function isMovementKey(key: string): boolean {
   return ['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'w', 'a', 's', 'd', 'W', 'A', 'S', 'D'].includes(key)
+}
+
+function inputFromKey(key: string): JoystickInput {
+  if (key === 'ArrowLeft' || key === 'a' || key === 'A') return { x: -1, y: 0 }
+  if (key === 'ArrowRight' || key === 'd' || key === 'D') return { x: 1, y: 0 }
+  if (key === 'ArrowUp' || key === 'w' || key === 'W') return { x: 0, y: -1 }
+  if (key === 'ArrowDown' || key === 's' || key === 'S') return { x: 0, y: 1 }
+  return ZERO_INPUT
+}
+
+function shouldShowInstructionNotice(previous: RuntimeSnapshot, current: RuntimeSnapshot): boolean {
+  return current.coinsCollected > previous.coinsCollected
+    || current.keysCollected > previous.keysCollected
+    || current.lives < previous.lives
+    || current.frightRemaining > previous.frightRemaining
+    || current.status !== previous.status
+    || current.instructionPhase === 'blocked'
+}
+
+function compactInstruction(runtime: RuntimeSnapshot): string {
+  if (runtime.status === 'won') return 'Cat rescued.'
+  if (runtime.status === 'gameover') return 'No hearts left.'
+  if (runtime.instructionPhase === 'blocked') return runtime.message
+  if (runtime.lives < runtime.maxLives && runtime.message.includes('heart')) return runtime.message
+  if (runtime.frightRemaining > 0) return 'Vacuums are edible and trying to escape.'
+  if (runtime.instructionPhase === 'key-appeared') return 'The last key appeared.'
+  if (runtime.keysCollected >= runtime.requiredKeys) return 'All keys collected. Rescue the cat.'
+  return runtime.message
+}
+
+function rectStyle(rect: { x: number; y: number; width: number; height: number }): CSSProperties {
+  return {
+    left: toPercent(rect.x, gameConfig.layout.designWidth),
+    top: toPercent(rect.y, gameConfig.layout.designHeight),
+    width: toPercent(rect.width, gameConfig.layout.designWidth),
+    height: toPercent(rect.height, gameConfig.layout.designHeight),
+  }
+}
+
+function circleStyle(circle: { x: number; y: number; radius: number }): CSSProperties {
+  return rectStyle({
+    x: circle.x - circle.radius,
+    y: circle.y - circle.radius,
+    width: circle.radius * 2,
+    height: circle.radius * 2,
+  })
+}
+
+function centeredTextStyle(text: { x: number; y: number; width: number }): CSSProperties {
+  return {
+    left: toPercent(text.x, gameConfig.layout.designWidth),
+    top: toPercent(text.y, gameConfig.layout.designHeight),
+    width: toPercent(text.width, gameConfig.layout.designWidth),
+  }
+}
+
+function squareCenterStyle(square: { x: number; y: number; size: number }): CSSProperties {
+  return rectStyle({
+    x: square.x - square.size / 2,
+    y: square.y - square.size / 2,
+    width: square.size,
+    height: square.size,
+  })
+}
+
+function toPercent(value: number, total: number): string {
+  return `${(value / total) * 100}%`
 }
 
 function playSfx(type: 'coin' | 'key' | 'hit' | 'win' | 'gameover') {

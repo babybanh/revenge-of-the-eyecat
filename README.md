@@ -15,6 +15,7 @@ Checks:
 
 ```bash
 npm run test
+npm run lint
 npm run build
 ```
 
@@ -33,7 +34,7 @@ npm run build
 | Eyecat player | `player` / Pac-style actor | `public/characters/player-eye-cat-plain.png` |
 | Vacuum enemy | chaser / patroller | `public/characters/character-vacuum.png` |
 | Cat hostage | hostage / rescue target | `public/characters/character-white-cat.png` |
-| Coin | collectible | `public/characters/character-coin.png` |
+| Coin | collectible | Yellow dot renderer |
 | Ruin stage 2 background | stage background | `public/backgrounds/lab-final-ruin-2.png` |
 | Cassia theme | background music | `public/audio/cassia-revenge-of-the-eyecat-remix.mp3` |
 
@@ -44,6 +45,11 @@ Some internal test names still use generic Pacman terms like ghost/chaser becaus
 - Seven named maps are available in the hidden workshop.
 - Collect coins to reveal the final key, collect all visible keys, then rescue the cat hostage.
 - Power pellets temporarily let Eyecat stun vacuums.
+- Joystick, arrow keys, or WASD start each paused level and unlock audio.
+- After a rescue, the next board loads automatically, stays frozen, and waits for the next movement gesture.
+- After Level 7 is cleared, Try Again returns to Level 1 as a frozen board.
+- Losing all three hearts returns to Level 1 automatically.
+- Coins render as simple yellow dots by default; the old coin image is only kept as an optional tuning asset.
 - Music starts from a real movement gesture.
 - Event SFX are generated in-browser for this first shell.
 - Credits use Cassia as the student credit and embed the current theme video: <https://youtu.be/sr8MUHoempk?si=fSSh9eexR-s-zNS8>

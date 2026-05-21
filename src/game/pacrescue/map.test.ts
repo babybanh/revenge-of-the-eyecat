@@ -137,6 +137,7 @@ describe('pac rescue map helpers', () => {
   })
 
   it('sanitizes coin artwork choices', () => {
+    expect(defaultPacRescueSettings.coinSkin).toBe('dot')
     expect(sanitizeSettings({ ...defaultPacRescueSettings, coinSkin: 'coin' }).coinSkin).toBe('coin')
     expect(sanitizeSettings({ ...defaultPacRescueSettings, coinSkin: 'vacuum-orange-dot' }).coinSkin).toBe('vacuum-orange-dot')
     expect(sanitizeSettings({ ...defaultPacRescueSettings, coinSkin: 'mystery' as typeof defaultPacRescueSettings.coinSkin }).coinSkin).toBe('dot')
