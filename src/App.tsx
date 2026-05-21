@@ -936,7 +936,7 @@ function heartLossStyle(popup: HeartLossPopup): CSSProperties {
   if (popup.x === undefined || popup.y === undefined) return {}
   return {
     left: `${(popup.x / PHASER_WORLD_SIZE) * 100}%`,
-    top: `${((popup.y - 40) / PHASER_WORLD_SIZE) * 100}%`,
+    top: `${((popup.y - 34) / PHASER_WORLD_SIZE) * 100}%`,
   }
 }
 

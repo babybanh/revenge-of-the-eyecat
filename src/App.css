@@ -515,16 +515,16 @@ a:focus-visible {
   margin-left: -115px;
   transform: translate3d(0, 0, 0);
   opacity: 0;
-  color: #df4b3a;
-  font-size: clamp(18px, 4.1cqw, 25px);
+  color: #e24c6f;
+  font-size: 22px;
   font-weight: 900;
   line-height: 1;
   text-align: center;
   text-shadow:
-    -2px -2px 0 #fff7e8,
-    2px -2px 0 #fff7e8,
-    -2px 2px 0 #fff7e8,
-    2px 2px 0 #fff7e8,
+    -2px -2px 0 #fffafd,
+    2px -2px 0 #fffafd,
+    -2px 2px 0 #fffafd,
+    2px 2px 0 #fffafd,
     0 5px 14px rgba(5, 8, 18, 0.28);
   pointer-events: none;
   will-change: transform, opacity;
