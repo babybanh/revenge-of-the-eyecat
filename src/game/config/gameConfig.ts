@@ -42,7 +42,7 @@ export const gameConfig = {
     playfield: { x: 96, y: 108, width: 528, height: 528 },
     bottomControls: { x: 0, y: 696, width: 720, height: 144 },
     prompt: { x: 360, y: 628, width: 460 },
-    eventPrompt: { x: 360, y: 628, width: 460 },
+    eventPrompt: { x: 142, y: 690, width: 204 },
     buttons: {
       credits: { x: 40, y: 716, width: 92, height: 44 },
       music: { x: 152, y: 716, width: 92, height: 44 },
