@@ -240,6 +240,22 @@ export default function App() {
     return load
   }, [getSfxContext])
 
+  const pulseSfxContextFromGesture = useCallback((context: AudioContext | null) => {
+    if (!context) return
+    try {
+      const buffer = context.createBuffer(1, 1, 22050)
+      const source = context.createBufferSource()
+      const gain = context.createGain()
+      source.buffer = buffer
+      gain.gain.value = 0
+      source.connect(gain)
+      gain.connect(context.destination)
+      source.start(0)
+    } catch {
+      // Some mobile browser shells are picky during unlock. A failed silent pulse should not block gameplay.
+    }
+  }, [])
+
   const playBufferedSfx = useCallback((type: SfxType) => {
     const context = getSfxContext()
     const buffer = sfxBuffersRef.current.get(type)
@@ -322,9 +338,11 @@ export default function App() {
     if (sfxPrimePendingRef.current) return
     sfxPrimePendingRef.current = true
     const context = getSfxContext()
+    pulseSfxContextFromGesture(context)
     const resume = context?.resume() ?? Promise.resolve()
     const bufferLoads = (Object.keys(SFX_PATHS) as SfxType[]).map(loadSfxBuffer)
     void Promise.allSettled([resume, ...bufferLoads]).then(() => {
+      pulseSfxContextFromGesture(context)
       sfxPrimedRef.current = context?.state === 'running'
       sfxPrimePendingRef.current = false
       if (!sfxPrimedRef.current) return
@@ -359,7 +377,7 @@ export default function App() {
     }).catch(() => {
       sfxPrimePendingRef.current = false
     })
-  }, [getSfxContext, getSfxPlayers, loadSfxBuffer, playSfxFile])
+  }, [getSfxContext, getSfxPlayers, loadSfxBuffer, playSfxFile, pulseSfxContextFromGesture])
 
   const unlockAudio = useCallback(() => {
     audioUnlockedRef.current = true

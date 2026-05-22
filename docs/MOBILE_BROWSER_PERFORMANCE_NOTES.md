@@ -12,6 +12,7 @@ Use these notes when tuning Revenge of the Eyecat or copying the fix into the PI
 
 - Avoid calling `HTMLAudio.play()` for every coin on Safari, Chrome mobile, or Facebook/Messenger in-app browsers. It can stutter movement and may be blocked by the browser.
 - Prefer decoded Web Audio buffers for short SFX after the first real gesture resumes the audio context.
+- On the first joystick/touch gesture, resume the Web Audio context and play a silent one-sample unlock pulse; delayed tutorial/game SFX are more reliable after that.
 - Keep a lightweight HTML audio fallback for important sounds, but do not let queued fallbacks double-play later.
 - On touch browsers, prefer Web Audio only for short SFX once the context is resumed. HTML audio fallbacks can arrive late or double-play after gesture priming.
 - Throttle repeated pickup sounds so several dots collected quickly do not trigger many audio starts in one moment.
