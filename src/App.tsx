@@ -277,8 +277,8 @@ export default function App() {
     return true
   }, [getSfxContext])
 
-  const playHtmlSfx = useCallback((type: SfxType, shouldQueueOnFailure = true) => {
-    if (playBufferedSfx(type)) return
+  const playHtmlSfx = useCallback((type: SfxType, shouldQueueOnFailure = true, preferBuffered = true) => {
+    if (preferBuffered && playBufferedSfx(type)) return
 
     const now = performance.now()
     const minInterval = SFX_MIN_INTERVAL_MS[type] ?? 0
@@ -304,15 +304,11 @@ export default function App() {
   }, [getSfxPlayers, playBufferedSfx])
 
   const playSfxFile = useCallback((type: SfxType) => {
-    if (playBufferedSfx(type)) return
     if (shouldAvoidHtmlSfxFallbackForDevice()) {
-      const context = getSfxContext()
-      const resume = context?.state === 'suspended' ? context.resume() : Promise.resolve()
-      void Promise.allSettled([resume, loadSfxBuffer(type)]).then(() => {
-        playBufferedSfx(type)
-      })
+      playHtmlSfx(type, type !== 'coin', false)
       return
     }
+    if (playBufferedSfx(type)) return
 
     let usedHtmlFallback = false
     const context = getSfxContext()
@@ -329,6 +325,22 @@ export default function App() {
     playHtmlSfx(type, type !== 'coin')
   }, [getSfxContext, loadSfxBuffer, playBufferedSfx, playHtmlSfx])
 
+  const primeHtmlSfxPlayer = useCallback((player: HTMLAudioElement) => {
+    player.muted = true
+    player.volume = 0
+    const prime = player.play()
+    return Promise.resolve(prime)
+      .then(() => {
+        player.pause()
+        player.currentTime = 0
+      })
+      .catch(() => undefined)
+      .finally(() => {
+        player.muted = false
+        player.volume = SFX_VOLUME
+      })
+  }, [])
+
   const primeSfxFromGesture = useCallback(() => {
     if (sfxPrimedRef.current) {
       const queued = queuedSfxRef.current.splice(0, queuedSfxRef.current.length)
@@ -337,6 +349,21 @@ export default function App() {
     }
     if (sfxPrimePendingRef.current) return
     sfxPrimePendingRef.current = true
+    const players = (Object.keys(SFX_PATHS) as SfxType[]).filter((type) => type !== 'coin').flatMap(getSfxPlayers)
+
+    if (shouldAvoidHtmlSfxFallbackForDevice()) {
+      void Promise.allSettled(players.map(primeHtmlSfxPlayer)).then((results) => {
+        sfxPrimedRef.current = results.some((result) => result.status === 'fulfilled')
+        sfxPrimePendingRef.current = false
+        if (!sfxPrimedRef.current) return
+        const queued = queuedSfxRef.current.splice(0, queuedSfxRef.current.length)
+        for (const type of queued) playSfxFile(type)
+      }).catch(() => {
+        sfxPrimePendingRef.current = false
+      })
+      return
+    }
+
     const context = getSfxContext()
     pulseSfxContextFromGesture(context)
     const resume = context?.resume() ?? Promise.resolve()
@@ -354,21 +381,7 @@ export default function App() {
 
     if (shouldAvoidHtmlSfxFallbackForDevice()) return
 
-    const players = (Object.keys(SFX_PATHS) as SfxType[]).filter((type) => type !== 'coin').flatMap(getSfxPlayers)
-    void Promise.allSettled(players.map((player) => {
-      player.muted = true
-      player.volume = 0
-      const prime = player.play()
-      return Promise.resolve(prime)
-        .then(() => {
-          player.pause()
-          player.currentTime = 0
-        })
-        .finally(() => {
-          player.muted = false
-          player.volume = SFX_VOLUME
-        })
-    })).then((results) => {
+    void Promise.allSettled(players.map(primeHtmlSfxPlayer)).then((results) => {
       sfxPrimedRef.current = sfxPrimedRef.current || results.some((result) => result.status === 'fulfilled')
       sfxPrimePendingRef.current = false
       if (!sfxPrimedRef.current) return
@@ -377,7 +390,7 @@ export default function App() {
     }).catch(() => {
       sfxPrimePendingRef.current = false
     })
-  }, [getSfxContext, getSfxPlayers, loadSfxBuffer, playSfxFile, pulseSfxContextFromGesture])
+  }, [getSfxContext, getSfxPlayers, loadSfxBuffer, playSfxFile, primeHtmlSfxPlayer, pulseSfxContextFromGesture])
 
   const unlockAudio = useCallback(() => {
     audioUnlockedRef.current = true
@@ -433,13 +446,22 @@ export default function App() {
     if (introRescueSfxPlayedRef.current) return
     introRescueSfxPlayedRef.current = true
     unlockAudio()
+    if (shouldAvoidHtmlSfxFallbackForDevice()) {
+      if (!sfxPrimedRef.current) {
+        queuedSfxRef.current.push(INTRO_RESCUE_SFX)
+        primeSfxFromGesture()
+        return
+      }
+      playHtmlSfx(INTRO_RESCUE_SFX, false, false)
+      return
+    }
     const context = getSfxContext()
     if (playBufferedSfx(INTRO_RESCUE_SFX)) return
     const resume = context?.state === 'suspended' ? context.resume() : Promise.resolve()
     void Promise.allSettled([resume, loadSfxBuffer(INTRO_RESCUE_SFX)]).then(() => {
       playBufferedSfx(INTRO_RESCUE_SFX)
     })
-  }, [getSfxContext, loadSfxBuffer, playBufferedSfx, unlockAudio])
+  }, [getSfxContext, loadSfxBuffer, playBufferedSfx, playHtmlSfx, primeSfxFromGesture, unlockAudio])
 
   useEffect(() => {
     musicEnabledRef.current = musicEnabled
