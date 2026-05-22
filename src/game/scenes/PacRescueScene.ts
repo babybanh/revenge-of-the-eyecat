@@ -55,6 +55,7 @@ export type PacRescueSceneOptions = {
   getJoystick: () => JoystickInput
   isPaused?: () => boolean
   onRuntime: (snapshot: RuntimeSnapshot) => void
+  onCoinCollected?: () => void
   onTileClick: (x: number, y: number) => void
 }
 
@@ -284,6 +285,7 @@ export class PacRescueScene extends Phaser.Scene {
 
     if (collectCoin(this.objective, key)) {
       this.message = 'Coin collected.'
+      this.options.onCoinCollected?.()
       this.queueLockedKeyReveal()
     }
     if (collectVisibleKey(this.objective, key)) {
@@ -553,11 +555,30 @@ export class PacRescueScene extends Phaser.Scene {
       frightRemaining: Math.ceil(this.frightRemaining),
       chasersEaten: this.chasersEaten,
     }
-    const signature = JSON.stringify(snapshot)
+    const signature = this.runtimeSignature(snapshot)
     if (force || signature !== this.lastRuntime) {
       this.lastRuntime = signature
       this.options.onRuntime(snapshot)
     }
+  }
+
+  private runtimeSignature(snapshot: RuntimeSnapshot): string {
+    return JSON.stringify({
+      status: snapshot.status,
+      keysCollected: snapshot.keysCollected,
+      totalKeys: snapshot.totalKeys,
+      coinReady: snapshot.coinsCollected >= snapshot.coinGoal,
+      instruction: snapshot.instruction,
+      instructionPhase: snapshot.instructionPhase,
+      message: snapshot.instructionPhase === 'find-key' ? '' : snapshot.message,
+      coinGoal: snapshot.coinGoal,
+      requiredKeys: snapshot.requiredKeys,
+      lives: snapshot.lives,
+      maxLives: snapshot.maxLives,
+      keysVisible: snapshot.keysVisible,
+      frightRemaining: snapshot.frightRemaining,
+      chasersEaten: snapshot.chasersEaten,
+    })
   }
 
   private progress() {

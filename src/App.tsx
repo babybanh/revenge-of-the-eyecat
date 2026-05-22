@@ -53,8 +53,9 @@ const SFX_POOL_SIZES: Record<SfxType, number> = {
   gameover: 1,
 }
 const SFX_MIN_INTERVAL_MS: Partial<Record<SfxType, number>> = {
-  coin: 70,
+  coin: 120,
 }
+type AudioWindow = Window & typeof globalThis & { webkitAudioContext?: typeof AudioContext }
 
 type MapPreset = {
   id: string
@@ -130,6 +131,9 @@ export default function App() {
   const sfxPlayersRef = useRef(new Map<SfxType, HTMLAudioElement[]>())
   const sfxCursorRef = useRef(new Map<SfxType, number>())
   const lastSfxAtRef = useRef(new Map<SfxType, number>())
+  const sfxContextRef = useRef<AudioContext | null>(null)
+  const sfxBuffersRef = useRef(new Map<SfxType, AudioBuffer>())
+  const sfxBufferLoadsRef = useRef(new Map<SfxType, Promise<AudioBuffer | null>>())
   const queuedSfxRef = useRef<SfxType[]>([])
   const joystickRef = useRef<JoystickInput>({ x: 0, y: 0 })
   const levelPausedRef = useRef(false)
@@ -201,7 +205,67 @@ export default function App() {
     return players
   }, [])
 
+  const getSfxContext = useCallback(() => {
+    if (sfxContextRef.current) return sfxContextRef.current
+    const AudioContextCtor = window.AudioContext ?? (window as AudioWindow).webkitAudioContext
+    if (!AudioContextCtor) return null
+    const context = new AudioContextCtor()
+    sfxContextRef.current = context
+    return context
+  }, [])
+
+  const loadSfxBuffer = useCallback((type: SfxType) => {
+    const existing = sfxBuffersRef.current.get(type)
+    if (existing) return Promise.resolve(existing)
+    const existingLoad = sfxBufferLoadsRef.current.get(type)
+    if (existingLoad) return existingLoad
+    const context = getSfxContext()
+    if (!context) return Promise.resolve(null)
+
+    const load = fetch(SFX_PATHS[type])
+      .then((response) => response.arrayBuffer())
+      .then((buffer) => context.decodeAudioData(buffer))
+      .then((buffer) => {
+        sfxBuffersRef.current.set(type, buffer)
+        return buffer
+      })
+      .catch(() => null)
+      .finally(() => {
+        sfxBufferLoadsRef.current.delete(type)
+      })
+
+    sfxBufferLoadsRef.current.set(type, load)
+    return load
+  }, [getSfxContext])
+
+  const playBufferedSfx = useCallback((type: SfxType) => {
+    const context = getSfxContext()
+    const buffer = sfxBuffersRef.current.get(type)
+    if (!context || context.state !== 'running' || !buffer) return false
+
+    const now = performance.now()
+    const minInterval = SFX_MIN_INTERVAL_MS[type] ?? 0
+    const lastPlayedAt = lastSfxAtRef.current.get(type) ?? 0
+    if (minInterval > 0 && now - lastPlayedAt < minInterval) return true
+    lastSfxAtRef.current.set(type, now)
+
+    const source = context.createBufferSource()
+    const gain = context.createGain()
+    source.buffer = buffer
+    gain.gain.value = SFX_VOLUME
+    source.connect(gain)
+    gain.connect(context.destination)
+    source.start()
+    return true
+  }, [getSfxContext])
+
   const playSfxFile = useCallback((type: SfxType) => {
+    if (playBufferedSfx(type)) return
+    void loadSfxBuffer(type).then((buffer) => {
+      if (buffer) playBufferedSfx(type)
+    })
+    if (type === 'coin') return
+
     const now = performance.now()
     const minInterval = SFX_MIN_INTERVAL_MS[type] ?? 0
     const lastPlayedAt = lastSfxAtRef.current.get(type) ?? 0
@@ -223,7 +287,7 @@ export default function App() {
       sfxPrimedRef.current = false
       queuedSfxRef.current.push(type)
     })
-  }, [getSfxPlayers])
+  }, [getSfxPlayers, loadSfxBuffer, playBufferedSfx])
 
   const primeSfxFromGesture = useCallback(() => {
     if (sfxPrimedRef.current) {
@@ -233,7 +297,20 @@ export default function App() {
     }
     if (sfxPrimePendingRef.current) return
     sfxPrimePendingRef.current = true
-    const players = (Object.keys(SFX_PATHS) as SfxType[]).flatMap(getSfxPlayers)
+    const context = getSfxContext()
+    const resume = context?.resume() ?? Promise.resolve()
+    const bufferLoads = (Object.keys(SFX_PATHS) as SfxType[]).map(loadSfxBuffer)
+    void Promise.allSettled([resume, ...bufferLoads]).then(() => {
+      sfxPrimedRef.current = context?.state === 'running'
+      sfxPrimePendingRef.current = false
+      if (!sfxPrimedRef.current) return
+      const queued = queuedSfxRef.current.splice(0, queuedSfxRef.current.length)
+      for (const type of queued) playSfxFile(type)
+    }).catch(() => {
+      sfxPrimePendingRef.current = false
+    })
+
+    const players = (Object.keys(SFX_PATHS) as SfxType[]).filter((type) => type !== 'coin').flatMap(getSfxPlayers)
     void Promise.allSettled(players.map((player) => {
       player.muted = true
       player.volume = 0
@@ -248,7 +325,7 @@ export default function App() {
           player.volume = SFX_VOLUME
         })
     })).then((results) => {
-      sfxPrimedRef.current = results.some((result) => result.status === 'fulfilled')
+      sfxPrimedRef.current = sfxPrimedRef.current || results.some((result) => result.status === 'fulfilled')
       sfxPrimePendingRef.current = false
       if (!sfxPrimedRef.current) return
       const queued = queuedSfxRef.current.splice(0, queuedSfxRef.current.length)
@@ -256,7 +333,7 @@ export default function App() {
     }).catch(() => {
       sfxPrimePendingRef.current = false
     })
-  }, [getSfxPlayers, playSfxFile])
+  }, [getSfxContext, getSfxPlayers, loadSfxBuffer, playSfxFile])
 
   const unlockAudio = useCallback(() => {
     audioUnlockedRef.current = true
@@ -325,9 +402,9 @@ export default function App() {
 
   useEffect(() => {
     for (const type of Object.keys(SFX_PATHS) as SfxType[]) {
-      getSfxPlayers(type)
+      void loadSfxBuffer(type)
     }
-  }, [getSfxPlayers])
+  }, [loadSfxBuffer])
 
   useEffect(() => {
     const images = PRELOAD_IMAGE_PATHS.map((path) => {
@@ -677,6 +754,7 @@ export default function App() {
         getJoystick: () => joystickRef.current,
         isPaused: () => levelPausedRef.current,
         onRuntime: (snapshot) => setRuntime({ ...snapshot }),
+        onCoinCollected: () => playSfx('coin'),
         onTileClick: () => undefined,
       }),
     })
@@ -686,14 +764,13 @@ export default function App() {
       game.destroy(true)
       gameRef.current = null
     }
-  }, [started, mapText, settings, restartToken])
+  }, [started, mapText, settings, restartToken, playSfx])
 
   useEffect(() => {
     const previous = previousRuntime.current
     previousRuntime.current = runtime
     if (!previous || !audioUnlockedRef.current) return
 
-    if (runtime.coinsCollected > previous.coinsCollected) playSfx('coin')
     if (runtime.keysCollected > previous.keysCollected) playSfx('key')
     if (runtime.lives < previous.lives) {
       playSfx('hit')
