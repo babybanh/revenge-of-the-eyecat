@@ -87,7 +87,7 @@ describe('pac rescue objective helpers', () => {
     )).toEqual({ phase: 'blocked', text: 'Find the key.' })
   })
 
-  it('prioritizes the missing-key nudge when rescue is blocked by a final multi-key key', () => {
+  it('keeps visible final keys on the normal instruction style', () => {
     const settings = { ...defaultPacRescueSettings, requiredKeys: 3, coinGoalPercent: 50 }
 
     expect(instructionForProgress(
@@ -95,7 +95,7 @@ describe('pac rescue objective helpers', () => {
       settings,
       'blocked',
       false,
-    )).toEqual({ phase: 'key-appeared', text: 'Find the missing key.' })
+    )).toEqual({ phase: 'blocked', text: 'Find the keys.' })
   })
 
   it('prioritizes the missing-key nudge when a hidden key is still waiting to appear', () => {

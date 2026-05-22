@@ -112,7 +112,7 @@ export function instructionForProgress(
     return { phase: 'rescue', text: 'Rescue the cat hostage.' }
   }
   if (phase === 'blocked') {
-    if (hasHiddenKey || (requiredKeys > 1 && Math.max(0, requiredKeys - progress.keysCollected) <= 1)) {
+    if (hasHiddenKey) {
       return { phase: 'key-appeared', text: 'Find the missing key.' }
     }
     return { phase, text: requiredKeys <= 1 ? 'Find the key.' : 'Find the keys.' }

@@ -714,6 +714,20 @@ export default function App() {
       )
       return
     }
+    if (
+      started
+      && !levelPaused
+      && runtime.status === 'playing'
+      && runtime.frightRemaining > 0
+      && runtime.instructionPhase === 'blocked'
+      && previous.instructionPhase !== 'blocked'
+      && hiddenKeyIsCurrentBlocker(runtime)
+    ) {
+      clearKeyReminder()
+      pendingAfterPowerInstruction.current = { text: 'Find the missing key.', phase: 'key-appeared' }
+      showInstruction('Find the missing key.', 'key-appeared')
+      return
+    }
     if (started && !levelPaused && runtime.status === 'playing' && runtime.frightRemaining > 0) {
       const afterPower = instructionAfterPower(runtime)
       if (afterPower) {
@@ -1351,27 +1365,23 @@ function shouldShowInstructionNotice(previous: RuntimeSnapshot, current: Runtime
 
 function compactInstruction(runtime: RuntimeSnapshot): string {
   const missingKeys = Math.max(0, runtime.requiredKeys - runtime.keysCollected)
-  const hasVisibleMissingKey = runtime.keysVisible > 0
   if (runtime.status === 'won') return ''
   if (runtime.status === 'gameover') return 'Back to level 1.'
   if (runtime.lives < runtime.maxLives && runtime.message.toLowerCase().includes('heart')) return 'Caught.'
   if (runtime.instructionPhase === 'blocked') return blockedRescueInstruction(runtime)
   if (runtime.keysCollected >= runtime.requiredKeys) return 'Rescue the cat.'
   if (runtime.frightRemaining > 0) return 'Eyecat is invincible.'
-  if (runtime.instructionPhase === 'key-appeared' || (runtime.requiredKeys > 1 && missingKeys <= 1 && hasVisibleMissingKey)) return 'Find the missing key.'
+  if (runtime.instructionPhase === 'key-appeared' || hiddenKeyIsCurrentBlocker(runtime)) return 'Find the missing key.'
   if (missingKeys <= 1) return ''
   return 'Find the keys.'
 }
 
 function instructionAfterPower(runtime: RuntimeSnapshot): string {
-  const missingKeys = Math.max(0, runtime.requiredKeys - runtime.keysCollected)
-  const hasVisibleMissingKey = runtime.keysVisible > 0
   if (runtime.status !== 'playing') return ''
   if (runtime.keysCollected >= runtime.requiredKeys) return 'Rescue the cat.'
   if (
     runtime.instructionPhase === 'key-appeared'
-    || hasHiddenMissingKey(runtime)
-    || (runtime.requiredKeys > 1 && missingKeys <= 1 && hasVisibleMissingKey)
+    || hiddenKeyIsCurrentBlocker(runtime)
   ) return 'Find the missing key.'
   return ''
 }
@@ -1389,12 +1399,15 @@ function startLevelInstruction(runtime: RuntimeSnapshot): string {
 
 function blockedRescueInstruction(runtime: RuntimeSnapshot): string {
   const missingKeys = Math.max(0, runtime.requiredKeys - runtime.keysCollected)
-  if (hasHiddenMissingKey(runtime) || (runtime.requiredKeys > 1 && missingKeys <= 1)) return 'Find the missing key.'
+  if (hiddenKeyIsCurrentBlocker(runtime)) return 'Find the missing key.'
   return missingKeys <= 1 ? 'Find the key.' : 'Find the keys.'
 }
 
-function hasHiddenMissingKey(runtime: RuntimeSnapshot): boolean {
-  return runtime.requiredKeys > 1 && runtime.keysCollected + runtime.keysVisible < runtime.requiredKeys
+function hiddenKeyIsCurrentBlocker(runtime: RuntimeSnapshot): boolean {
+  return runtime.requiredKeys > 1
+    && runtime.keysVisible <= 0
+    && runtime.keysCollected < runtime.requiredKeys
+    && runtime.keysCollected + runtime.keysVisible < runtime.requiredKeys
 }
 
 function rectStyle(rect: { x: number; y: number; width: number; height: number }): CSSProperties {
