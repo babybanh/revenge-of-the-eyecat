@@ -361,12 +361,19 @@ a:focus-visible {
 }
 
 .start-control-prompt {
+  display: flex;
+  align-items: center;
+  justify-content: center;
   padding: 6px 11px;
   border-radius: 14px;
   font-size: clamp(11px, 2.2223cqw, 16px);
   font-weight: 650;
   line-height: 1.12;
-  white-space: nowrap;
+  text-align: center;
+  text-wrap: balance;
+  white-space: normal;
+  overflow-wrap: normal;
+  word-break: normal;
 }
 
 @keyframes invincible-panel-pulse {
