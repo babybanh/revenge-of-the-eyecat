@@ -45,6 +45,7 @@ const PRELOAD_IMAGE_PATHS = [
 ]
 
 type SfxType = keyof typeof SFX_PATHS
+const INTRO_RESCUE_SFX: SfxType = 'key'
 const SFX_POOL_SIZES: Record<SfxType, number> = {
   coin: 6,
   key: 2,
@@ -54,6 +55,8 @@ const SFX_POOL_SIZES: Record<SfxType, number> = {
 }
 const SFX_MIN_INTERVAL_MS: Partial<Record<SfxType, number>> = {
   coin: 120,
+  key: 220,
+  win: 420,
 }
 type AudioWindow = Window & typeof globalThis & { webkitAudioContext?: typeof AudioContext }
 
@@ -407,8 +410,8 @@ export default function App() {
     if (context?.state === 'suspended') {
       void context.resume()
     }
-    if (playBufferedSfx('win')) return
-    playHtmlSfx('win', false)
+    if (playBufferedSfx(INTRO_RESCUE_SFX)) return
+    playHtmlSfx(INTRO_RESCUE_SFX, false)
   }, [getSfxContext, playBufferedSfx, playHtmlSfx, unlockAudio])
 
   useEffect(() => {
