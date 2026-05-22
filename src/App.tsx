@@ -153,6 +153,7 @@ export default function App() {
   const introPhaseRef = useRef<IntroPhase>('waiting')
   const introInputHeldRef = useRef(false)
   const postIntroInputLockedRef = useRef(false)
+  const introRescueSfxPlayedRef = useRef(false)
   const musicPrimeTimer = useRef<number | undefined>(undefined)
   const musicPrimedRef = useRef(false)
   const musicWasPlayingBeforeHidden = useRef(false)
@@ -259,12 +260,8 @@ export default function App() {
     return true
   }, [getSfxContext])
 
-  const playSfxFile = useCallback((type: SfxType) => {
+  const playHtmlSfx = useCallback((type: SfxType, shouldQueueOnFailure = true) => {
     if (playBufferedSfx(type)) return
-    void loadSfxBuffer(type).then((buffer) => {
-      if (buffer) playBufferedSfx(type)
-    })
-    if (type === 'coin') return
 
     const now = performance.now()
     const minInterval = SFX_MIN_INTERVAL_MS[type] ?? 0
@@ -285,9 +282,26 @@ export default function App() {
     const sound = player.play()
     sound.catch(() => {
       sfxPrimedRef.current = false
-      queuedSfxRef.current.push(type)
+      if (shouldQueueOnFailure) queuedSfxRef.current.push(type)
     })
-  }, [getSfxPlayers, loadSfxBuffer, playBufferedSfx])
+  }, [getSfxPlayers, playBufferedSfx])
+
+  const playSfxFile = useCallback((type: SfxType) => {
+    if (playBufferedSfx(type)) return
+    let usedHtmlFallback = false
+    const context = getSfxContext()
+    if (context?.state === 'suspended') {
+      void context.resume().then(() => {
+        if (!usedHtmlFallback) playBufferedSfx(type)
+      })
+    }
+    void loadSfxBuffer(type).then((buffer) => {
+      if (buffer && !usedHtmlFallback) playBufferedSfx(type)
+    })
+
+    usedHtmlFallback = true
+    playHtmlSfx(type, type !== 'coin')
+  }, [getSfxContext, loadSfxBuffer, playBufferedSfx, playHtmlSfx])
 
   const primeSfxFromGesture = useCallback(() => {
     if (sfxPrimedRef.current) {
@@ -384,6 +398,18 @@ export default function App() {
     }
     playSfxFile(type)
   }, [playSfxFile, primeSfxFromGesture])
+
+  const playIntroRescueSfx = useCallback(() => {
+    if (introRescueSfxPlayedRef.current) return
+    introRescueSfxPlayedRef.current = true
+    unlockAudio()
+    const context = getSfxContext()
+    if (context?.state === 'suspended') {
+      void context.resume()
+    }
+    if (playBufferedSfx('win')) return
+    playHtmlSfx('win', false)
+  }, [getSfxContext, playBufferedSfx, playHtmlSfx, unlockAudio])
 
   useEffect(() => {
     musicEnabledRef.current = musicEnabled
@@ -635,7 +661,7 @@ export default function App() {
   const startGame = useCallback(() => {
     previousRuntime.current = null
     joystickRef.current = ZERO_INPUT
-    postIntroInputLockedRef.current = introInputHeldRef.current
+    postIntroInputLockedRef.current = keyboardStartRef.current && introInputHeldRef.current
     const initialRuntime = createInitialRuntime(mapText, settings)
     setRuntime(initialRuntime)
     setStarted(true)
@@ -657,13 +683,13 @@ export default function App() {
     introRescueTimer.current = window.setTimeout(() => {
       introRescueTimer.current = undefined
       setIntroPhase('rescued')
-      playSfx('win')
+      playIntroRescueSfx()
       introHandoffTimer.current = window.setTimeout(() => {
         introHandoffTimer.current = undefined
         startGame()
       }, gameConfig.layout.startArt.rescueHoldMs)
     }, gameConfig.layout.startArt.rescueGlideMs)
-  }, [modalOpen, playSfx, startGame, started])
+  }, [modalOpen, playIntroRescueSfx, startGame, started])
 
   useEffect(() => {
     const image = new Image()
@@ -866,7 +892,10 @@ export default function App() {
     pendingAfterPowerInstruction.current = null
     postIntroInputLockedRef.current = false
     introInputHeldRef.current = false
-    if (!shouldStart) setIntroPhase('waiting')
+    if (!shouldStart) {
+      introRescueSfxPlayedRef.current = false
+      setIntroPhase('waiting')
+    }
     clearKeyReminder()
     clearRescueReminder()
     keyReminderShown.current = false
