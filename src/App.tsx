@@ -45,6 +45,16 @@ const PRELOAD_IMAGE_PATHS = [
 ]
 
 type SfxType = keyof typeof SFX_PATHS
+const SFX_POOL_SIZES: Record<SfxType, number> = {
+  coin: 6,
+  key: 2,
+  hit: 2,
+  win: 2,
+  gameover: 1,
+}
+const SFX_MIN_INTERVAL_MS: Partial<Record<SfxType, number>> = {
+  coin: 70,
+}
 
 type MapPreset = {
   id: string
@@ -117,7 +127,9 @@ export default function App() {
   const musicRef = useRef<HTMLAudioElement | null>(null)
   const musicEnabledRef = useRef(true)
   const musicStartedRef = useRef(false)
-  const sfxPlayersRef = useRef(new Map<SfxType, HTMLAudioElement>())
+  const sfxPlayersRef = useRef(new Map<SfxType, HTMLAudioElement[]>())
+  const sfxCursorRef = useRef(new Map<SfxType, number>())
+  const lastSfxAtRef = useRef(new Map<SfxType, number>())
   const queuedSfxRef = useRef<SfxType[]>([])
   const joystickRef = useRef<JoystickInput>({ x: 0, y: 0 })
   const levelPausedRef = useRef(false)
@@ -174,20 +186,34 @@ export default function App() {
     '--spot-joy-r': `${toPercent(gameConfig.layout.joystick.radius, gameConfig.layout.designWidth)}`,
   }) as CSSProperties, [])
 
-  const getSfxPlayer = useCallback((type: SfxType) => {
+  const getSfxPlayers = useCallback((type: SfxType) => {
     const existing = sfxPlayersRef.current.get(type)
     if (existing) return existing
-    const player = new Audio(SFX_PATHS[type])
-    player.preload = 'auto'
-    ;(player as HTMLAudioElement & { playsInline?: boolean }).playsInline = true
-    player.volume = SFX_VOLUME
-    player.load()
-    sfxPlayersRef.current.set(type, player)
-    return player
+    const players = Array.from({ length: SFX_POOL_SIZES[type] }, () => {
+      const player = new Audio(SFX_PATHS[type])
+      player.preload = 'auto'
+      ;(player as HTMLAudioElement & { playsInline?: boolean }).playsInline = true
+      player.volume = SFX_VOLUME
+      player.load()
+      return player
+    })
+    sfxPlayersRef.current.set(type, players)
+    return players
   }, [])
 
   const playSfxFile = useCallback((type: SfxType) => {
-    const player = getSfxPlayer(type)
+    const now = performance.now()
+    const minInterval = SFX_MIN_INTERVAL_MS[type] ?? 0
+    const lastPlayedAt = lastSfxAtRef.current.get(type) ?? 0
+    if (minInterval > 0 && now - lastPlayedAt < minInterval) return
+    lastSfxAtRef.current.set(type, now)
+
+    const players = getSfxPlayers(type)
+    const cursor = sfxCursorRef.current.get(type) ?? 0
+    const availableOffset = players.findIndex((candidate) => candidate.paused || candidate.ended)
+    const index = availableOffset >= 0 ? availableOffset : cursor % players.length
+    const player = players[index]
+    sfxCursorRef.current.set(type, (index + 1) % players.length)
     player.pause()
     player.currentTime = 0
     player.muted = false
@@ -197,7 +223,7 @@ export default function App() {
       sfxPrimedRef.current = false
       queuedSfxRef.current.push(type)
     })
-  }, [getSfxPlayer])
+  }, [getSfxPlayers])
 
   const primeSfxFromGesture = useCallback(() => {
     if (sfxPrimedRef.current) {
@@ -207,7 +233,7 @@ export default function App() {
     }
     if (sfxPrimePendingRef.current) return
     sfxPrimePendingRef.current = true
-    const players = (Object.keys(SFX_PATHS) as SfxType[]).map(getSfxPlayer)
+    const players = (Object.keys(SFX_PATHS) as SfxType[]).flatMap(getSfxPlayers)
     void Promise.allSettled(players.map((player) => {
       player.muted = true
       player.volume = 0
@@ -230,7 +256,7 @@ export default function App() {
     }).catch(() => {
       sfxPrimePendingRef.current = false
     })
-  }, [getSfxPlayer, playSfxFile])
+  }, [getSfxPlayers, playSfxFile])
 
   const unlockAudio = useCallback(() => {
     audioUnlockedRef.current = true
@@ -299,9 +325,9 @@ export default function App() {
 
   useEffect(() => {
     for (const type of Object.keys(SFX_PATHS) as SfxType[]) {
-      getSfxPlayer(type)
+      getSfxPlayers(type)
     }
-  }, [getSfxPlayer])
+  }, [getSfxPlayers])
 
   useEffect(() => {
     const images = PRELOAD_IMAGE_PATHS.map((path) => {
@@ -1355,7 +1381,8 @@ function isMovementKey(key: string): boolean {
 
 function shouldShowInstructionNotice(previous: RuntimeSnapshot, current: RuntimeSnapshot): boolean {
   if (current.status === 'won') return false
-  return current.keysCollected > previous.keysCollected
+  const collectedARescueReadyKey = current.keysCollected > previous.keysCollected && current.keysCollected >= current.requiredKeys
+  return collectedARescueReadyKey
     || current.lives < previous.lives
     || current.frightRemaining > previous.frightRemaining
     || current.status !== previous.status

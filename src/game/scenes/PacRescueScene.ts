@@ -523,11 +523,17 @@ export class PacRescueScene extends Phaser.Scene {
   private emitRuntime(force: boolean): void {
     const progress = this.progress()
     const playerPosition = actorPosition(this.player, this.level)
+    const keyStatus = keyProgress(this.objective)
+    const hiddenKeyIsCurrentBlocker = Boolean(
+      this.objective.lockedKey
+      && !this.objective.lockedKeyRevealed
+      && keyStatus.keysVisible <= 0,
+    )
     const instruction = instructionForProgress(
       progress,
       this.settings,
       this.instructionPhase,
-      Boolean(this.objective.lockedKey && !this.objective.lockedKeyRevealed),
+      hiddenKeyIsCurrentBlocker,
     )
     const snapshot: RuntimeSnapshot = {
       ...progress,
@@ -543,7 +549,7 @@ export class PacRescueScene extends Phaser.Scene {
       requiredKeys: this.requiredKeys(),
       lives: this.lives,
       maxLives: MAX_LIVES,
-      keysVisible: keyProgress(this.objective).keysVisible,
+      keysVisible: keyStatus.keysVisible,
       frightRemaining: Math.ceil(this.frightRemaining),
       chasersEaten: this.chasersEaten,
     }

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { defaultPacRescueSettings } from './defaults'
+import { defaultPacRescueLevelMaps, defaultPacRescueSettings } from './defaults'
 import { parseMapText, pointKey, rescueCoinGoal } from './map'
 import {
   collectCoin,
@@ -98,7 +98,26 @@ describe('pac rescue objective helpers', () => {
     )).toEqual({ phase: 'blocked', text: 'Find the keys.' })
   })
 
-  it('prioritizes the missing-key nudge when a hidden key is still waiting to appear', () => {
+  it('does not use the hidden-key nudge while Level 3 still has a visible key', () => {
+    const state = createDelayedKeyState(parseMapText(defaultPacRescueLevelMaps[2].mapText))
+    const progress = {
+      coinsCollected: 0,
+      totalCoins: state.totalCoins,
+      keysCollected: keyProgress(state).keysCollected,
+      totalKeys: state.totalKeys,
+    }
+    const hiddenKeyIsCurrentBlocker = Boolean(state.lockedKey && !state.lockedKeyRevealed && keyProgress(state).keysVisible <= 0)
+
+    expect(keyProgress(state).keysVisible).toBeGreaterThan(0)
+    expect(instructionForProgress(
+      progress,
+      defaultPacRescueSettings,
+      'blocked',
+      hiddenKeyIsCurrentBlocker,
+    )).toEqual({ phase: 'blocked', text: 'Find the keys.' })
+  })
+
+  it('prioritizes the missing-key nudge when the hidden key is the blocker', () => {
     const settings = { ...defaultPacRescueSettings, requiredKeys: 3, coinGoalPercent: 50 }
 
     expect(instructionForProgress(
@@ -106,6 +125,6 @@ describe('pac rescue objective helpers', () => {
       settings,
       'blocked',
       true,
-    )).toEqual({ phase: 'key-appeared', text: 'Find the missing key.' })
+    )).toEqual({ phase: 'blocked', text: 'Find the missing key.' })
   })
 })

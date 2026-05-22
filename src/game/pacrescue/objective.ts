@@ -96,7 +96,7 @@ export function instructionForProgress(
   progress: RescueProgress,
   settings: PacRescueSettings,
   phase: InstructionPhase,
-  hasHiddenKey: boolean,
+  hiddenKeyIsCurrentBlocker: boolean,
 ): { phase: InstructionPhase; text: string } {
   if (phase === 'won') {
     return { phase, text: 'Cat hostage rescued.' }
@@ -112,12 +112,12 @@ export function instructionForProgress(
     return { phase: 'rescue', text: 'Rescue the cat hostage.' }
   }
   if (phase === 'blocked') {
-    if (hasHiddenKey) {
-      return { phase: 'key-appeared', text: 'Find the missing key.' }
+    if (hiddenKeyIsCurrentBlocker) {
+      return { phase, text: 'Find the missing key.' }
     }
     return { phase, text: requiredKeys <= 1 ? 'Find the key.' : 'Find the keys.' }
   }
-  if (hasHiddenKey) {
+  if (hiddenKeyIsCurrentBlocker) {
     return { phase: 'collect-coins', text: 'Collect more coins to reveal the last key.' }
   }
   if (progress.keysCollected >= requiredKeys) {
