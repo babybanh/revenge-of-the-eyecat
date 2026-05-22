@@ -26,6 +26,24 @@
   box-sizing: border-box;
 }
 
+.page-shell,
+.game-shell,
+.start-overlay,
+.joystick-zone,
+.joystick-wrap,
+.gesture-joystick {
+  -webkit-tap-highlight-color: transparent;
+  -webkit-touch-callout: none;
+  -webkit-user-select: none;
+  -webkit-user-drag: none;
+  user-select: none;
+}
+
+.game-shell::selection,
+.game-shell *::selection {
+  background: transparent;
+}
+
 .page-shell {
   min-height: 100dvh;
   display: grid;
@@ -383,6 +401,17 @@ a:focus-visible {
   pointer-events: auto;
 }
 
+.game-shell.is-intro .credits-button {
+  z-index: 50;
+  opacity: 0.82;
+  filter: saturate(0.84) brightness(0.94);
+}
+
+.game-shell.is-intro .music-button {
+  opacity: 0;
+  pointer-events: none;
+}
+
 .control-button:active {
   transform: translateY(clamp(1.5px, 0.4167cqw, 3px));
   box-shadow:
@@ -402,6 +431,7 @@ a:focus-visible {
   z-index: 49;
   pointer-events: auto;
   touch-action: none;
+  outline: none;
 }
 
 .joystick-zone.disabled {

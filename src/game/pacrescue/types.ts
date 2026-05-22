@@ -9,19 +9,11 @@ export type Direction = GridPoint
 
 export type GhostType = 'chaser' | 'patroller'
 export type EnemySkin = 'classic' | 'vacuum'
-export type PlayerSkin = 'classic' | 'eye-cat-bronze' | 'eye-cat-white' | 'eye-cat-plain'
-export type CoinSkin = 'dot' | 'vacuum-orange-dot' | 'coin'
+export type PlayerSkin = 'classic' | 'eye-cat-plain'
+export type CoinSkin = 'dot' | 'vacuum-orange-dot'
 export type MazeFloor = 'classic' | 'transparent' | 'dusty-rose' | 'warm-clay' | 'stage-salmon' | 'spotlight' | 'soft-mauve'
 export type StageBackground =
   | 'none'
-  | 'lab-wide'
-  | 'lab-close'
-  | 'lab-tall'
-  | 'lab-ruin'
-  | 'lab-smoke'
-  | 'lab-glow'
-  | 'lab-compact'
-  | 'lab-final-ruin'
   | 'lab-final-ruin-2'
 export type MazeWall =
   | 'electric-blue'

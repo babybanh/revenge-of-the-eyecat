@@ -11,6 +11,7 @@ export type StepActor = {
 export type CollisionResult = 'none' | 'normal-hit' | 'powered-eat'
 export type TileBlocker = (point: GridPoint) => boolean
 
+export const BONUS_POWER_PELLET_EATEN_THRESHOLD = 3
 export const stoppedDirection: Direction = { x: 0, y: 0 }
 
 export function createStepActor(tile: GridPoint, direction: Direction = stoppedDirection): StepActor {
@@ -323,6 +324,47 @@ export function chooseOppositeCornerRespawnTile(
   }
 
   return bestTile ?? chooseSafeRespawnTile(level, targetCorner, [playerTile, ...hazards], 4, isBlocked)
+}
+
+export function shouldSpawnBonusPowerPellet(chasersEaten: number, alreadySpawned: boolean): boolean {
+  return chasersEaten >= BONUS_POWER_PELLET_EATEN_THRESHOLD && !alreadySpawned
+}
+
+export function chooseBonusPowerPelletTile(
+  level: PacRescueLevel,
+  playerTile: GridPoint,
+  occupiedTiles: GridPoint[] = [],
+  isBlocked?: TileBlocker,
+): GridPoint | undefined {
+  const occupied = new Set([pointKey(playerTile), ...occupiedTiles.map(pointKey)])
+  let bestTile: GridPoint | undefined
+  let bestDistance = Number.NEGATIVE_INFINITY
+  let bestCornerBias = Number.POSITIVE_INFINITY
+  const targetCorner = {
+    x: playerTile.x < level.width / 2 ? level.width - 2 : 1,
+    y: playerTile.y < level.height / 2 ? level.height - 2 : 1,
+  }
+
+  for (let y = 0; y < level.height; y += 1) {
+    for (let x = 0; x < level.width; x += 1) {
+      const tile = { x, y }
+      if (isWall(level, x, y) || isBlocked?.(tile) || occupied.has(pointKey(tile))) {
+        continue
+      }
+      const distance = bfsDistance(level, playerTile, tile)
+      if (distance === undefined) {
+        continue
+      }
+      const cornerBias = bfsDistance(level, tile, targetCorner) ?? euclideanDistance(tile, targetCorner)
+      if (distance > bestDistance || (distance === bestDistance && cornerBias < bestCornerBias)) {
+        bestTile = tile
+        bestDistance = distance
+        bestCornerBias = cornerBias
+      }
+    }
+  }
+
+  return bestTile
 }
 
 export function crossedTiles(previousA: GridPoint, currentA: GridPoint, previousB: GridPoint, currentB: GridPoint): boolean {

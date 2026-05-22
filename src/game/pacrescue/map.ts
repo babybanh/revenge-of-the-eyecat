@@ -441,14 +441,14 @@ function sanitizeMazeFloor(value: string): PacRescueSettings['mazeFloor'] {
 }
 
 function sanitizePlayerSkin(value: string): PacRescueSettings['playerSkin'] {
-  if (value === 'eye-cat-bronze' || value === 'eye-cat-white' || value === 'eye-cat-plain') {
+  if (value === 'eye-cat-plain') {
     return value
   }
   return 'classic'
 }
 
 function sanitizeCoinSkin(value: string): PacRescueSettings['coinSkin'] {
-  if (value === 'coin' || value === 'vacuum-orange-dot') {
+  if (value === 'vacuum-orange-dot') {
     return value
   }
   return 'dot'
@@ -456,15 +456,7 @@ function sanitizeCoinSkin(value: string): PacRescueSettings['coinSkin'] {
 
 function sanitizeStageBackground(value: string): PacRescueSettings['stageBackground'] {
   if (
-    value === 'lab-wide'
-    || value === 'lab-close'
-    || value === 'lab-tall'
-    || value === 'lab-ruin'
-    || value === 'lab-smoke'
-    || value === 'lab-glow'
-    || value === 'lab-compact'
-    || value === 'lab-final-ruin'
-    || value === 'lab-final-ruin-2'
+    value === 'lab-final-ruin-2'
     || value === 'none'
   ) {
     return value

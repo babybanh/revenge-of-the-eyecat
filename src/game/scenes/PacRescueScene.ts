@@ -25,6 +25,7 @@ import {
   actorPosition,
   advanceStep,
   beginStep,
+  chooseBonusPowerPelletTile,
   chooseGhostStep,
   chooseOppositeCornerRespawnTile,
   choosePatrollerStep,
@@ -34,6 +35,7 @@ import {
   isMoving,
   resolveTileCollision,
   sameTile,
+  shouldSpawnBonusPowerPellet,
   stepTarget,
   stoppedDirection,
   type StepActor,
@@ -86,13 +88,11 @@ const PATROLLER_COLOR = 0xf2a04a
 const FRIGHT_COLOR = 0x64b7ff
 const EATEN_COLOR = 0x8791a1
 const VACUUM_ENEMY_KEY = 'enemy-vacuum'
-const EYE_CAT_BRONZE_PLAYER_KEY = 'player-eye-cat-bronze'
-const EYE_CAT_WHITE_PLAYER_KEY = 'player-eye-cat-white'
 const EYE_CAT_PLAIN_PLAYER_KEY = 'player-eye-cat-plain'
-const COIN_SPRITE_KEY = 'coin-sprite'
 const KEY_ITEM_KEY = 'item-key'
 const KEY_ITEM_GREEN_KEY = 'item-key-green'
 const POWER_UP_ITEM_KEY = 'item-power-up'
+const BONUS_POWER_UP_ITEM_KEY = 'item-power-up-yellow'
 const RESCUE_CAT_KEY = 'rescue-cat'
 const CAMERA_SMOOTHING = 4.5
 const POWER_SPEED_MULTIPLIER = 1.1
@@ -100,6 +100,7 @@ const LOCKED_KEY_REVEAL_DELAY = 0.75
 const LOCKED_KEY_NOTICE_DELAY = 0.45
 const VACUUM_DEFEAT_SECONDS = 0.55
 const VACUUM_RESPAWN_SECONDS = 2.5
+const BONUS_POWER_POP_SECONDS = 1.1
 
 export class PacRescueScene extends Phaser.Scene {
   private options: PacRescueSceneOptions
@@ -126,6 +127,9 @@ export class PacRescueScene extends Phaser.Scene {
   private lockedKeyRevealDelay = 0
   private lockedKeyNoticeDelay = 0
   private chasersEaten = 0
+  private bonusPowerPelletSpawned = false
+  private bonusPowerPelletKey?: string
+  private bonusPowerPelletPop = 0
   private elapsed = 0
   private lastRuntime = ''
   private boardRect = { x: 0, y: 0, width: 1, height: 1, tile: 1 }
@@ -145,15 +149,11 @@ export class PacRescueScene extends Phaser.Scene {
 
   preload(): void {
     this.load.image(VACUUM_ENEMY_KEY, '/characters/character-vacuum.png')
-    this.load.image(EYE_CAT_BRONZE_PLAYER_KEY, '/characters/player-eye-cat-bronze.png')
-    this.load.image(EYE_CAT_WHITE_PLAYER_KEY, '/characters/player-eye-cat-white.png')
     this.load.image(EYE_CAT_PLAIN_PLAYER_KEY, '/characters/player-eye-cat-plain.png')
-    if (this.settings.coinSkin === 'coin') {
-      this.load.image(COIN_SPRITE_KEY, '/characters/character-coin.png')
-    }
     this.load.image(KEY_ITEM_KEY, '/characters/item-key.png')
     this.load.image(KEY_ITEM_GREEN_KEY, '/characters/item-key-green.png')
     this.load.image(POWER_UP_ITEM_KEY, '/characters/item-power-up.png')
+    this.load.image(BONUS_POWER_UP_ITEM_KEY, '/characters/item-power-up-yellow.png')
     this.load.image(RESCUE_CAT_KEY, '/characters/character-white-cat.png')
   }
 
@@ -199,6 +199,7 @@ export class PacRescueScene extends Phaser.Scene {
       this.updateChasers(delta, previousPlayerTile)
       this.checkHostage()
     }
+    this.bonusPowerPelletPop = Math.max(0, this.bonusPowerPelletPop - delta)
 
     this.computeBoardRect(delta)
     this.render()
@@ -220,6 +221,9 @@ export class PacRescueScene extends Phaser.Scene {
     this.lockedKeyRevealDelay = 0
     this.lockedKeyNoticeDelay = 0
     this.chasersEaten = 0
+    this.bonusPowerPelletSpawned = false
+    this.bonusPowerPelletKey = undefined
+    this.bonusPowerPelletPop = 0
   }
 
   private createChasers(): ChaserRuntime[] {
@@ -284,6 +288,10 @@ export class PacRescueScene extends Phaser.Scene {
       this.queueLockedKeyReveal()
     }
     if (this.powerPellets.delete(key)) {
+      if (key === this.bonusPowerPelletKey) {
+        this.bonusPowerPelletKey = undefined
+        this.bonusPowerPelletPop = 0
+      }
       this.frightRemaining = this.settings.frightDuration
       this.instructionPhase = 'power-up'
       this.message = 'Power pellet active. Vacuums are edible and trying to escape.'
@@ -378,6 +386,13 @@ export class PacRescueScene extends Phaser.Scene {
           blocksPrincessZone,
         )
         this.chasersEaten += 1
+        this.maybeSpawnBonusPowerPellet([
+          ...this.chasers.flatMap((other, otherIndex) => (
+            otherIndex === index ? [] : [other.tile, other.nextTile]
+          )),
+          nextChaser.tile,
+          nextChaser.nextTile,
+        ])
         this.message = 'Vacuum eaten. It will reappear away from you.'
         nextChasers.push({
           ...nextChaser,
@@ -415,6 +430,32 @@ export class PacRescueScene extends Phaser.Scene {
     }
 
     this.chasers = nextChasers
+  }
+
+  private maybeSpawnBonusPowerPellet(chaserTiles: GridPoint[]): void {
+    if (!shouldSpawnBonusPowerPellet(this.chasersEaten, this.bonusPowerPelletSpawned)) return
+    const occupied = [
+      this.player.tile,
+      this.player.nextTile,
+      this.level.hostage,
+      ...chaserTiles,
+      ...[...visibleUncollectedKeys(this.objective)].map(parseKey),
+      ...[...this.powerPellets].map(parseKey),
+      ...[...this.objective.coins].map(parseKey),
+    ]
+    const tile = chooseBonusPowerPelletTile(
+      this.level,
+      this.player.tile,
+      occupied,
+      (point) => isInRescueZone(point, this.level.hostage, this.settings.rescueZoneSize),
+    )
+    if (!tile) return
+
+    const key = pointKey(tile)
+    this.powerPellets.add(key)
+    this.bonusPowerPelletSpawned = true
+    this.bonusPowerPelletKey = key
+    this.bonusPowerPelletPop = BONUS_POWER_POP_SECONDS
   }
 
   private respawnAfterCaught(): void {
@@ -630,15 +671,11 @@ export class PacRescueScene extends Phaser.Scene {
   }
 
   private drawCollectibles(g: Phaser.GameObjects.Graphics): void {
-    if (this.settings.coinSkin === 'coin' && this.textures.exists(COIN_SPRITE_KEY)) {
-      this.drawCoinSprites()
-    } else {
-      this.hideCoinSprites()
-      for (const key of this.objective.coins) {
-        const point = parseKey(key)
-        g.fillStyle(this.coinDotColor(), 1)
-        g.fillCircle(this.cx(point.x), this.cy(point.y), this.boardRect.tile * 0.09)
-      }
+    this.hideCoinSprites()
+    for (const key of this.objective.coins) {
+      const point = parseKey(key)
+      g.fillStyle(this.coinDotColor(), 1)
+      g.fillCircle(this.cx(point.x), this.cy(point.y), this.boardRect.tile * 0.09)
     }
     const visibleKeys = [...visibleUncollectedKeys(this.objective)]
     if (this.textures.exists(KEY_ITEM_KEY)) {
@@ -651,25 +688,6 @@ export class PacRescueScene extends Phaser.Scene {
       }
     }
     this.drawPowerPelletSprites()
-  }
-
-  private drawCoinSprites(): void {
-    const coins = [...this.objective.coins]
-    for (let index = 0; index < coins.length; index += 1) {
-      const point = parseKey(coins[index])
-      const sprite = this.coinSprites[index] ?? this.add.image(0, 0, COIN_SPRITE_KEY).setOrigin(0.5).setDepth(1)
-      this.coinSprites[index] = sprite
-      const pulse = 1 + Math.sin(this.elapsed * 7 + point.x + point.y) * 0.1
-      const size = this.boardRect.tile * 0.44 * pulse
-      sprite
-        .setVisible(true)
-        .setPosition(this.cx(point.x), this.cy(point.y))
-        .setDisplaySize(size, size)
-    }
-
-    for (let index = coins.length; index < this.coinSprites.length; index += 1) {
-      this.coinSprites[index].setVisible(false)
-    }
   }
 
   private hideCoinSprites(): void {
@@ -712,16 +730,22 @@ export class PacRescueScene extends Phaser.Scene {
     const pellets = [...this.powerPellets]
     for (let index = 0; index < pellets.length; index += 1) {
       const point = parseKey(pellets[index])
-      const sprite = this.powerPelletSprites[index] ?? this.add.image(0, 0, POWER_UP_ITEM_KEY).setOrigin(0.5).setDepth(1.2)
+      const isBonusPower = pellets[index] === this.bonusPowerPelletKey
+      const textureKey = isBonusPower ? BONUS_POWER_UP_ITEM_KEY : POWER_UP_ITEM_KEY
+      const sprite = this.powerPelletSprites[index] ?? this.add.image(0, 0, textureKey).setOrigin(0.5).setDepth(1.2)
       this.powerPelletSprites[index] = sprite
       const pulse = 1 + Math.sin(this.elapsed * 5.5 + point.x + point.y) * 0.08
-      const height = this.boardRect.tile * 0.72 * pulse
+      const spawnPop = isBonusPower && this.bonusPowerPelletPop > 0
+        ? 1 + (this.bonusPowerPelletPop / BONUS_POWER_POP_SECONDS) * 0.16
+        : 1
+      const height = this.boardRect.tile * 0.72 * pulse * spawnPop
       sprite
+        .setTexture(textureKey)
         .setVisible(true)
         .setPosition(this.cx(point.x), this.cy(point.y))
         .setDisplaySize(height * 0.75, height)
         .setRotation(-0.16)
-        .setAlpha(0.96)
+        .setAlpha(spawnPop > 1 ? 1 : 0.96)
     }
 
     for (let index = pellets.length; index < this.powerPelletSprites.length; index += 1) {
@@ -892,8 +916,7 @@ export class PacRescueScene extends Phaser.Scene {
   }
 
   private eyeCatTextureKey(): string {
-    if (this.settings.playerSkin === 'eye-cat-plain') return EYE_CAT_PLAIN_PLAYER_KEY
-    return this.settings.playerSkin === 'eye-cat-white' ? EYE_CAT_WHITE_PLAYER_KEY : EYE_CAT_BRONZE_PLAYER_KEY
+    return EYE_CAT_PLAIN_PLAYER_KEY
   }
 
   private coinDotColor(): number {

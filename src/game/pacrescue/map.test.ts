@@ -126,8 +126,6 @@ describe('pac rescue map helpers', () => {
   })
 
   it('sanitizes player cat artwork choices', () => {
-    expect(sanitizeSettings({ ...defaultPacRescueSettings, playerSkin: 'eye-cat-bronze' }).playerSkin).toBe('eye-cat-bronze')
-    expect(sanitizeSettings({ ...defaultPacRescueSettings, playerSkin: 'eye-cat-white' }).playerSkin).toBe('eye-cat-white')
     expect(sanitizeSettings({ ...defaultPacRescueSettings, playerSkin: 'eye-cat-plain' }).playerSkin).toBe('eye-cat-plain')
     expect(sanitizeSettings({ ...defaultPacRescueSettings, playerSkin: 'mystery' as typeof defaultPacRescueSettings.playerSkin }).playerSkin).toBe('classic')
   })
@@ -138,15 +136,11 @@ describe('pac rescue map helpers', () => {
 
   it('sanitizes coin artwork choices', () => {
     expect(defaultPacRescueSettings.coinSkin).toBe('dot')
-    expect(sanitizeSettings({ ...defaultPacRescueSettings, coinSkin: 'coin' }).coinSkin).toBe('coin')
     expect(sanitizeSettings({ ...defaultPacRescueSettings, coinSkin: 'vacuum-orange-dot' }).coinSkin).toBe('vacuum-orange-dot')
     expect(sanitizeSettings({ ...defaultPacRescueSettings, coinSkin: 'mystery' as typeof defaultPacRescueSettings.coinSkin }).coinSkin).toBe('dot')
   })
 
   it('sanitizes stage backgrounds and board offsets', () => {
-    expect(sanitizeSettings({ ...defaultPacRescueSettings, stageBackground: 'lab-smoke' }).stageBackground).toBe('lab-smoke')
-    expect(sanitizeSettings({ ...defaultPacRescueSettings, stageBackground: 'lab-compact' }).stageBackground).toBe('lab-compact')
-    expect(sanitizeSettings({ ...defaultPacRescueSettings, stageBackground: 'lab-final-ruin' }).stageBackground).toBe('lab-final-ruin')
     expect(sanitizeSettings({ ...defaultPacRescueSettings, stageBackground: 'lab-final-ruin-2' }).stageBackground).toBe('lab-final-ruin-2')
     expect(sanitizeSettings({ ...defaultPacRescueSettings, stageBackground: 'mystery' as typeof defaultPacRescueSettings.stageBackground }).stageBackground).toBe('none')
     expect(sanitizeSettings({ ...defaultPacRescueSettings, stageBackgroundScale: 20 }).stageBackgroundScale).toBe(60)

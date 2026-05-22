@@ -5,6 +5,7 @@ import {
   advanceStep,
   beginStep,
   bfsDistance,
+  chooseBonusPowerPelletTile,
   chooseFleeStep,
   chooseGhostStep,
   chooseOppositeCornerRespawnTile,
@@ -14,6 +15,7 @@ import {
   ghostTypeForIndex,
   legalStepDirections,
   resolveTileCollision,
+  shouldSpawnBonusPowerPellet,
   stepTarget,
 } from './step'
 
@@ -223,5 +225,42 @@ describe('tile-step pac rescue movement', () => {
     expect(respawn.x).toBeGreaterThanOrEqual(5)
     expect(respawn.y).toBeGreaterThanOrEqual(2)
     expect(isWall(level, respawn.x, respawn.y)).toBe(false)
+  })
+
+  it('gates the bonus power-up until three vacuums are eaten once per level', () => {
+    expect(shouldSpawnBonusPowerPellet(2, false)).toBe(false)
+    expect(shouldSpawnBonusPowerPellet(3, false)).toBe(true)
+    expect(shouldSpawnBonusPowerPellet(5, true)).toBe(false)
+    expect(shouldSpawnBonusPowerPellet(0, false)).toBe(false)
+  })
+
+  it('places the bonus power-up far from the player and off occupied tiles', () => {
+    const level = parseMapText([
+      '#########',
+      '#P..   H#',
+      '# ### ###',
+      '#O  K  C#',
+      '#       #',
+      '#########',
+    ].join('\n'))
+    const occupied = [
+      level.hostage,
+      ...level.chasers,
+      ...[...level.keys].map((key) => {
+        const [x, y] = key.split(',').map(Number)
+        return { x, y }
+      }),
+      ...[...level.powerPellets].map((key) => {
+        const [x, y] = key.split(',').map(Number)
+        return { x, y }
+      }),
+    ]
+
+    const bonus = chooseBonusPowerPelletTile(level, level.playerStart, occupied)
+
+    expect(bonus).toBeDefined()
+    expect(isWall(level, bonus!.x, bonus!.y)).toBe(false)
+    expect(occupied).not.toContainEqual(bonus)
+    expect(bfsDistance(level, level.playerStart, bonus!)).toBeGreaterThanOrEqual(5)
   })
 })

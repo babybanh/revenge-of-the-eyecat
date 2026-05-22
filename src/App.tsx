@@ -23,6 +23,14 @@ const INSTRUCTION_RETRY_MS = 900
 const POWER_INSTRUCTION_BUFFER_MS = 200
 const KEYBOARD_JOYSTICK_HIDE_MS = 1800
 const MUSIC_VOLUME = 0.36
+const SFX_VOLUME = 0.38
+const SFX_PATHS = {
+  coin: '/audio/sfx/eyecat-coin.wav',
+  key: '/audio/sfx/eyecat-key.wav',
+  hit: '/audio/sfx/eyecat-hit.wav',
+  win: '/audio/sfx/eyecat-win.wav',
+  gameover: '/audio/sfx/eyecat-gameover.wav',
+} as const
 const PRELOAD_IMAGE_PATHS = [
   gameConfig.assets.background,
   gameConfig.assets.player,
@@ -31,13 +39,11 @@ const PRELOAD_IMAGE_PATHS = [
   '/characters/item-key.png',
   '/characters/item-key-green.png',
   '/characters/item-power-up.png',
+  '/characters/item-power-up-yellow.png',
   gameConfig.assets.concept,
 ]
 
-type EyecatAudioWindow = Window & {
-  eyecatAudioContext?: AudioContext
-  webkitAudioContext?: typeof AudioContext
-}
+type SfxType = keyof typeof SFX_PATHS
 
 type MapPreset = {
   id: string
@@ -108,9 +114,10 @@ export default function App() {
   const hostRef = useRef<HTMLDivElement | null>(null)
   const gameRef = useRef<Phaser.Game | null>(null)
   const musicRef = useRef<HTMLAudioElement | null>(null)
-  const audioContextRef = useRef<AudioContext | null>(null)
   const musicEnabledRef = useRef(true)
   const musicStartedRef = useRef(false)
+  const sfxPlayersRef = useRef(new Map<SfxType, HTMLAudioElement>())
+  const queuedSfxRef = useRef<SfxType[]>([])
   const joystickRef = useRef<JoystickInput>({ x: 0, y: 0 })
   const levelPausedRef = useRef(false)
   const keyboardStartRef = useRef(false)
@@ -128,6 +135,8 @@ export default function App() {
   const musicPrimedRef = useRef(false)
   const musicWasPlayingBeforeHidden = useRef(false)
   const sfxPrimedRef = useRef(false)
+  const sfxPrimePendingRef = useRef(false)
+  const audioUnlockedRef = useRef(false)
   const pendingAfterPowerInstruction = useRef<{ text: string; phase: InstructionPhase } | null>(null)
   const [activeIndex, setActiveIndex] = useState(0)
   const [mapText, setMapText] = useState(mapPresets[0].mapText)
@@ -141,7 +150,6 @@ export default function App() {
   const [restartToken, setRestartToken] = useState(0)
   const [musicEnabled, setMusicEnabled] = useState(true)
   const [musicStarted, setMusicStarted] = useState(false)
-  const [audioUnlocked, setAudioUnlocked] = useState(false)
   const [keyboardJoystickHidden, setKeyboardJoystickHidden] = useState(false)
   const [heartLossPopup, setHeartLossPopup] = useState<HeartLossPopup | null>(null)
   const [showCredits, setShowCredits] = useState(false)
@@ -159,24 +167,66 @@ export default function App() {
     '--spot-joy-r': `${toPercent(gameConfig.layout.joystick.radius, gameConfig.layout.designWidth)}`,
   }) as CSSProperties, [])
 
+  const getSfxPlayer = useCallback((type: SfxType) => {
+    const existing = sfxPlayersRef.current.get(type)
+    if (existing) return existing
+    const player = new Audio(SFX_PATHS[type])
+    player.preload = 'auto'
+    ;(player as HTMLAudioElement & { playsInline?: boolean }).playsInline = true
+    player.volume = SFX_VOLUME
+    player.load()
+    sfxPlayersRef.current.set(type, player)
+    return player
+  }, [])
+
+  const playSfxFile = useCallback((type: SfxType) => {
+    const player = getSfxPlayer(type)
+    player.pause()
+    player.currentTime = 0
+    player.muted = false
+    player.volume = SFX_VOLUME
+    const sound = player.play()
+    sound.catch(() => {
+      sfxPrimedRef.current = false
+      queuedSfxRef.current.push(type)
+    })
+  }, [getSfxPlayer])
+
+  const primeSfxFromGesture = useCallback(() => {
+    if (sfxPrimedRef.current) {
+      const queued = queuedSfxRef.current.splice(0, queuedSfxRef.current.length)
+      for (const type of queued) playSfxFile(type)
+      return
+    }
+    if (sfxPrimePendingRef.current) return
+    sfxPrimePendingRef.current = true
+    const players = (Object.keys(SFX_PATHS) as SfxType[]).map(getSfxPlayer)
+    void Promise.allSettled(players.map((player) => {
+      player.muted = true
+      player.volume = 0
+      const prime = player.play()
+      return Promise.resolve(prime)
+        .then(() => {
+          player.pause()
+          player.currentTime = 0
+        })
+        .finally(() => {
+          player.muted = false
+          player.volume = SFX_VOLUME
+        })
+    })).then((results) => {
+      sfxPrimedRef.current = results.some((result) => result.status === 'fulfilled')
+      sfxPrimePendingRef.current = false
+      if (!sfxPrimedRef.current) return
+      const queued = queuedSfxRef.current.splice(0, queuedSfxRef.current.length)
+      for (const type of queued) playSfxFile(type)
+    }).catch(() => {
+      sfxPrimePendingRef.current = false
+    })
+  }, [getSfxPlayer, playSfxFile])
+
   const unlockAudio = useCallback(() => {
-    if (!audioContextRef.current) {
-      audioContextRef.current = getEyecatAudioContext()
-    }
-    const context = audioContextRef.current
-    if (!context) return
-    const primeSfx = () => {
-      if (sfxPrimedRef.current) return
-      primeSfxContext(context)
-      sfxPrimedRef.current = true
-    }
-    primeSfx()
-    if (context.state === 'suspended') {
-      void context.resume().then(primeSfx).catch(() => {
-        sfxPrimedRef.current = false
-      })
-    }
-    setAudioUnlocked(true)
+    audioUnlockedRef.current = true
   }, [])
 
   const primeMusicFromGesture = useCallback(() => {
@@ -198,8 +248,32 @@ export default function App() {
 
   const prepareAudioFromGesture = useCallback(() => {
     unlockAudio()
+    primeSfxFromGesture()
     primeMusicFromGesture()
-  }, [primeMusicFromGesture, unlockAudio])
+  }, [primeMusicFromGesture, primeSfxFromGesture, unlockAudio])
+
+  useEffect(() => {
+    const prepare = () => prepareAudioFromGesture()
+    window.addEventListener('pointerdown', prepare, { capture: true, passive: true })
+    window.addEventListener('pointerup', prepare, { capture: true, passive: true })
+    window.addEventListener('touchstart', prepare, { capture: true, passive: true })
+    window.addEventListener('touchend', prepare, { capture: true, passive: true })
+    return () => {
+      window.removeEventListener('pointerdown', prepare, true)
+      window.removeEventListener('pointerup', prepare, true)
+      window.removeEventListener('touchstart', prepare, true)
+      window.removeEventListener('touchend', prepare, true)
+    }
+  }, [prepareAudioFromGesture])
+
+  const playSfx = useCallback((type: SfxType) => {
+    if (!sfxPrimedRef.current) {
+      queuedSfxRef.current.push(type)
+      primeSfxFromGesture()
+      return
+    }
+    playSfxFile(type)
+  }, [playSfxFile, primeSfxFromGesture])
 
   useEffect(() => {
     musicEnabledRef.current = musicEnabled
@@ -215,6 +289,12 @@ export default function App() {
     ;(audio as HTMLAudioElement & { playsInline?: boolean }).playsInline = true
     audio.load()
   }, [])
+
+  useEffect(() => {
+    for (const type of Object.keys(SFX_PATHS) as SfxType[]) {
+      getSfxPlayer(type)
+    }
+  }, [getSfxPlayer])
 
   useEffect(() => {
     const images = PRELOAD_IMAGE_PATHS.map((path) => {
@@ -541,7 +621,7 @@ export default function App() {
   useEffect(() => {
     const previous = previousRuntime.current
     previousRuntime.current = runtime
-    if (!previous || !audioUnlocked) return
+    if (!previous || !audioUnlockedRef.current) return
 
     if (runtime.coinsCollected > previous.coinsCollected) playSfx('coin')
     if (runtime.keysCollected > previous.keysCollected) playSfx('key')
@@ -590,6 +670,18 @@ export default function App() {
       )
       return
     }
+    if (started && !levelPaused && runtime.status === 'playing' && runtime.frightRemaining > 0) {
+      const afterPower = instructionAfterPower(runtime)
+      if (afterPower) {
+        const phase = phaseForInstruction(afterPower, runtime)
+        pendingAfterPowerInstruction.current = { text: afterPower, phase }
+        if (phase === 'rescue') {
+          clearKeyReminder()
+          clearRescueReminder()
+        }
+      }
+      return
+    }
     if (started && !levelPaused && shouldShowInstructionNotice(previous, runtime)) {
       const nextInstruction = compactInstruction(runtime)
       if (nextInstruction) {
@@ -604,7 +696,7 @@ export default function App() {
         showInstruction(nextInstruction, phase)
       }
     }
-  }, [runtime, audioUnlocked, clearKeyReminder, clearRescueReminder, levelPaused, scheduleRescueReminder, showInstruction, started])
+  }, [runtime, clearKeyReminder, clearRescueReminder, levelPaused, playSfx, scheduleRescueReminder, showInstruction, started])
 
   const switchPreset = useCallback((index: number, shouldStart: boolean, shouldPause = false) => {
     const preset = mapPresets[index] ?? mapPresets[0]
@@ -888,6 +980,7 @@ function MoveJoystick({
 
   const update = (event: React.PointerEvent<HTMLDivElement>, base = activeBaseRef.current) => {
     if (disabled) return
+    event.preventDefault()
     const rect = zone.current?.getBoundingClientRect()
     if (!rect || !base) return
     const point = pointerToDesignPoint(event, rect, zoneConfig)
@@ -910,6 +1003,7 @@ function MoveJoystick({
 
   const startDrag = (event: React.PointerEvent<HTMLDivElement>) => {
     if (disabled) return
+    event.preventDefault()
     onPrepareGesture()
     const rect = zone.current?.getBoundingClientRect()
     if (!rect) return
@@ -923,8 +1017,11 @@ function MoveJoystick({
     <>
       <div
         className={`joystick-zone ${disabled ? 'disabled' : ''}`}
+        aria-hidden="true"
+        onContextMenu={(event) => event.preventDefault()}
         onPointerCancel={reset}
         onPointerDown={(event) => {
+          event.preventDefault()
           event.currentTarget.setPointerCapture(event.pointerId)
           startDrag(event)
         }}
@@ -936,6 +1033,7 @@ function MoveJoystick({
         ref={zone}
         role="presentation"
         style={zoneStyle}
+        tabIndex={-1}
       />
       <div className={`joystick-wrap ${intro && !activeBase ? 'is-intro' : ''} ${activeBase ? 'is-active' : ''} ${hidden ? 'is-keyboard-hidden' : ''}`} style={activeBase ? circleStyle({ ...activeBase, radius: center.radius }) : style}>
         <div className={`gesture-joystick ${disabled ? 'disabled' : ''}`}>
@@ -1208,53 +1306,4 @@ function heartLossStyle(popup: HeartLossPopup): CSSProperties {
 
 function toPercent(value: number, total: number): string {
   return `${(value / total) * 100}%`
-}
-
-function getEyecatAudioContext(): AudioContext | null {
-  const audioWindow = window as EyecatAudioWindow
-  const AudioContextConstructor = window.AudioContext ?? audioWindow.webkitAudioContext
-  if (!AudioContextConstructor) return null
-  const context = audioWindow.eyecatAudioContext ?? new AudioContextConstructor()
-  audioWindow.eyecatAudioContext = context
-  return context
-}
-
-function primeSfxContext(context: AudioContext): void {
-  const buffer = context.createBuffer(1, 1, Math.max(1, context.sampleRate))
-  const source = context.createBufferSource()
-  const gain = context.createGain()
-  gain.gain.setValueAtTime(0.0001, context.currentTime)
-  gain.gain.exponentialRampToValueAtTime(0.00001, context.currentTime + 0.02)
-  source.buffer = buffer
-  source.connect(gain).connect(context.destination)
-  source.start(context.currentTime)
-  source.stop(context.currentTime + 0.03)
-}
-
-function playSfx(type: 'coin' | 'key' | 'hit' | 'win' | 'gameover') {
-  const context = (window as EyecatAudioWindow).eyecatAudioContext
-  if (!context) return
-  if (context.state === 'suspended') {
-    void context.resume().then(() => playSfx(type)).catch(() => undefined)
-    return
-  }
-  const now = context.currentTime
-  const profile = {
-    coin: { frequency: 740, end: 980, duration: 0.08, type: 'sine' as OscillatorType },
-    key: { frequency: 520, end: 1220, duration: 0.16, type: 'triangle' as OscillatorType },
-    hit: { frequency: 140, end: 70, duration: 0.18, type: 'sawtooth' as OscillatorType },
-    win: { frequency: 660, end: 1320, duration: 0.28, type: 'triangle' as OscillatorType },
-    gameover: { frequency: 220, end: 80, duration: 0.3, type: 'sawtooth' as OscillatorType },
-  }[type]
-  const oscillator = context.createOscillator()
-  const gain = context.createGain()
-  oscillator.type = profile.type
-  oscillator.frequency.setValueAtTime(profile.frequency, now)
-  oscillator.frequency.exponentialRampToValueAtTime(Math.max(1, profile.end), now + profile.duration)
-  gain.gain.setValueAtTime(0.0001, now)
-  gain.gain.exponentialRampToValueAtTime(type === 'hit' || type === 'gameover' ? 0.08 : 0.045, now + 0.01)
-  gain.gain.exponentialRampToValueAtTime(0.0001, now + profile.duration)
-  oscillator.connect(gain).connect(context.destination)
-  oscillator.start(now)
-  oscillator.stop(now + profile.duration + 0.02)
 }

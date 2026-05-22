@@ -10,11 +10,9 @@ export const gameConfig = {
   },
   assets: {
     background: '/backgrounds/lab-final-ruin-2.png',
-    optionalBackgrounds: ['/backgrounds/background-ruin3.png', '/backgrounds/lab-final-ruin.png', '/backgrounds/lab-ruin.png', '/backgrounds/lab-glow.png'],
     player: '/characters/player-eye-cat-plain.png',
     vacuum: '/characters/character-vacuum.png',
     hostage: '/characters/character-white-cat.png',
-    coin: '/characters/character-coin.png',
     concept: '/concept/cassia-revenge-of-the-eyecat.jpg',
     music: '/audio/cassia-revenge-of-the-eyecat-remix.mp3',
   },
