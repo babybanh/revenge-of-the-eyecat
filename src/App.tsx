@@ -55,8 +55,6 @@ const SFX_POOL_SIZES: Record<SfxType, number> = {
 }
 const SFX_MIN_INTERVAL_MS: Partial<Record<SfxType, number>> = {
   coin: 120,
-  key: 220,
-  win: 420,
 }
 type AudioWindow = Window & typeof globalThis & { webkitAudioContext?: typeof AudioContext }
 
@@ -291,6 +289,15 @@ export default function App() {
 
   const playSfxFile = useCallback((type: SfxType) => {
     if (playBufferedSfx(type)) return
+    if (shouldAvoidHtmlSfxFallbackForDevice()) {
+      const context = getSfxContext()
+      const resume = context?.state === 'suspended' ? context.resume() : Promise.resolve()
+      void Promise.allSettled([resume, loadSfxBuffer(type)]).then(() => {
+        playBufferedSfx(type)
+      })
+      return
+    }
+
     let usedHtmlFallback = false
     const context = getSfxContext()
     if (context?.state === 'suspended') {
@@ -326,6 +333,8 @@ export default function App() {
     }).catch(() => {
       sfxPrimePendingRef.current = false
     })
+
+    if (shouldAvoidHtmlSfxFallbackForDevice()) return
 
     const players = (Object.keys(SFX_PATHS) as SfxType[]).filter((type) => type !== 'coin').flatMap(getSfxPlayers)
     void Promise.allSettled(players.map((player) => {
@@ -407,12 +416,12 @@ export default function App() {
     introRescueSfxPlayedRef.current = true
     unlockAudio()
     const context = getSfxContext()
-    if (context?.state === 'suspended') {
-      void context.resume()
-    }
     if (playBufferedSfx(INTRO_RESCUE_SFX)) return
-    playHtmlSfx(INTRO_RESCUE_SFX, false)
-  }, [getSfxContext, playBufferedSfx, playHtmlSfx, unlockAudio])
+    const resume = context?.state === 'suspended' ? context.resume() : Promise.resolve()
+    void Promise.allSettled([resume, loadSfxBuffer(INTRO_RESCUE_SFX)]).then(() => {
+      playBufferedSfx(INTRO_RESCUE_SFX)
+    })
+  }, [getSfxContext, loadSfxBuffer, playBufferedSfx, unlockAudio])
 
   useEffect(() => {
     musicEnabledRef.current = musicEnabled
@@ -450,6 +459,11 @@ export default function App() {
   useEffect(() => {
     levelPausedRef.current = levelPaused
   }, [levelPaused])
+
+  const setLevelPausedNow = useCallback((paused: boolean) => {
+    levelPausedRef.current = paused
+    setLevelPaused(paused)
+  }, [])
 
   useEffect(() => {
     introPhaseRef.current = introPhase
@@ -568,7 +582,7 @@ export default function App() {
   }, [clearRescueReminder, scheduleKeyReminder])
 
   const resumeLevelFromPause = useCallback(() => {
-    setLevelPaused(false)
+    setLevelPausedNow(false)
     const current = runtimeRef.current ?? runtime
     if (current.status === 'playing' && current.keysCollected >= current.requiredKeys) {
       rescueReminderShown.current = false
@@ -576,16 +590,16 @@ export default function App() {
       return
     }
     showLevelInstructionSoon(current)
-  }, [runtime, scheduleRescueReminder, showLevelInstructionSoon])
+  }, [runtime, scheduleRescueReminder, setLevelPausedNow, showLevelInstructionSoon])
 
   const pauseForModal = useCallback(() => {
     if (!started || runtimeRef.current?.status !== 'playing') return
     joystickRef.current = ZERO_INPUT
     clearKeyReminder()
     clearRescueReminder()
-    setLevelPaused(true)
+    setLevelPausedNow(true)
     setInstructionVisible(false)
-  }, [clearKeyReminder, clearRescueReminder, started])
+  }, [clearKeyReminder, clearRescueReminder, setLevelPausedNow, started])
 
   const openCredits = useCallback(() => {
     pauseForModal()
@@ -618,25 +632,19 @@ export default function App() {
     audio.muted = false
     audio.volume = MUSIC_VOLUME
     audio.loop = true
-    musicPrimeTimer.current = window.setTimeout(() => {
-      musicPrimeTimer.current = undefined
+    musicStartedRef.current = true
+    if (!audio.paused) {
+      setMusicStarted(true)
+      return
+    }
+    void audio.play().then(() => {
       audio.muted = false
       audio.volume = MUSIC_VOLUME
-      if (audio.paused) {
-        void audio.play()
-          .then(() => setMusicStarted(true))
-          .catch(() => setMusicStarted(false))
-      } else {
-        setMusicStarted(true)
-      }
-    }, 0)
-    void audio.play()
-      .then(() => {
-        audio.muted = false
-        audio.volume = MUSIC_VOLUME
-        setMusicStarted(true)
-      })
-      .catch(() => setMusicStarted(false))
+      setMusicStarted(true)
+    }).catch(() => {
+      musicStartedRef.current = false
+      setMusicStarted(false)
+    })
   }, [])
 
   useEffect(() => {
@@ -668,14 +676,15 @@ export default function App() {
     const initialRuntime = createInitialRuntime(mapText, settings)
     setRuntime(initialRuntime)
     setStarted(true)
-    setLevelPaused(true)
+    setLevelPausedNow(true)
     setInstructionVisible(false)
     setInstructionText('')
     setRestartToken((token) => token + 1)
-  }, [mapText, settings])
+  }, [mapText, setLevelPausedNow, settings])
 
   const beginIntroRescue = useCallback(() => {
     if (started || modalOpen || introPhaseRef.current !== 'waiting') return
+    introPhaseRef.current = 'rescuing'
     setIntroPhase('rescuing')
     if (introRescueTimer.current) {
       window.clearTimeout(introRescueTimer.current)
@@ -685,6 +694,7 @@ export default function App() {
     }
     introRescueTimer.current = window.setTimeout(() => {
       introRescueTimer.current = undefined
+      introPhaseRef.current = 'rescued'
       setIntroPhase('rescued')
       playIntroRescueSfx()
       introHandoffTimer.current = window.setTimeout(() => {
@@ -898,6 +908,7 @@ export default function App() {
     postIntroInputLockedRef.current = false
     introInputHeldRef.current = false
     if (!shouldStart) {
+      introPhaseRef.current = 'waiting'
       introRescueSfxPlayedRef.current = false
       setIntroPhase('waiting')
     }
@@ -910,13 +921,13 @@ export default function App() {
     setSettings(preset.settings)
     setRuntime(createInitialRuntime(preset.mapText, preset.settings))
     setStarted(shouldStart)
-    setLevelPaused(shouldStart && shouldPause)
+    setLevelPausedNow(shouldStart && shouldPause)
     setShowFinalClear(false)
     setInstructionVisible(false)
     setInstructionText('')
     setHeartLossPopup(null)
     setRestartToken((token) => token + 1)
-  }, [clearKeyReminder, clearRescueReminder])
+  }, [clearKeyReminder, clearRescueReminder, setLevelPausedNow])
 
   useEffect(() => {
     if (runtime.status !== 'won') {
@@ -927,14 +938,14 @@ export default function App() {
     const timer = window.setTimeout(() => {
       if (nextIndex === undefined) {
         joystickRef.current = ZERO_INPUT
-        setLevelPaused(true)
+        setLevelPausedNow(true)
         setShowFinalClear(true)
         return
       }
       switchPreset(nextIndex, true, true)
     }, 720)
     return () => window.clearTimeout(timer)
-  }, [activeIndex, runtime.status, switchPreset])
+  }, [activeIndex, runtime.status, setLevelPausedNow, switchPreset])
 
   useEffect(() => {
     if (runtime.status !== 'gameover') {
@@ -1336,11 +1347,15 @@ function clearBrowserTouchArtifacts() {
 }
 
 function shouldPlayCoinSfxForDevice(): boolean {
-  if (typeof window === 'undefined' || typeof navigator === 'undefined') return true
+  return !shouldAvoidHtmlSfxFallbackForDevice()
+}
+
+function shouldAvoidHtmlSfxFallbackForDevice(): boolean {
+  if (typeof window === 'undefined' || typeof navigator === 'undefined') return false
   const hasCoarsePointer = window.matchMedia?.('(pointer: coarse)').matches ?? false
   const hasTouch = navigator.maxTouchPoints > 0
   const inAppBrowser = /FBAN|FBAV|FBIOS|FB_IAB|Instagram|Messenger|Line|MicroMessenger/i.test(navigator.userAgent)
-  return !(hasCoarsePointer || hasTouch || inAppBrowser)
+  return hasCoarsePointer || hasTouch || inAppBrowser
 }
 
 function CreditsModal({ onClose }: { onClose: () => void }) {
