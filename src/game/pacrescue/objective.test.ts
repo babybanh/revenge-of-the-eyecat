@@ -6,6 +6,7 @@ import {
   collectVisibleKey,
   collectedCoins,
   createDelayedKeyState,
+  instructionForProgress,
   isBlockedRescueTile,
   isInRescueZone,
   keyProgress,
@@ -73,5 +74,38 @@ describe('pac rescue objective helpers', () => {
     expect(isInRescueZone({ x: 7, y: 5 }, hostage, 3)).toBe(false)
     expect(isBlockedRescueTile({ x: 5, y: 5 }, hostage, { coinsCollected: 4, totalCoins: 10, keysCollected: 2 }, settings)).toBe(true)
     expect(isBlockedRescueTile({ x: 5, y: 5 }, hostage, { coinsCollected: 5, totalCoins: 10, keysCollected: 2 }, settings)).toBe(false)
+  })
+
+  it('uses the normal key nudge when the one-key first rescue is blocked', () => {
+    const settings = { ...defaultPacRescueSettings, requiredKeys: 1, coinGoalPercent: 50 }
+
+    expect(instructionForProgress(
+      { coinsCollected: 8, totalCoins: 10, keysCollected: 0 },
+      settings,
+      'blocked',
+      false,
+    )).toEqual({ phase: 'blocked', text: 'Find the key.' })
+  })
+
+  it('prioritizes the missing-key nudge when rescue is blocked by a final multi-key key', () => {
+    const settings = { ...defaultPacRescueSettings, requiredKeys: 3, coinGoalPercent: 50 }
+
+    expect(instructionForProgress(
+      { coinsCollected: 8, totalCoins: 10, keysCollected: 2 },
+      settings,
+      'blocked',
+      false,
+    )).toEqual({ phase: 'key-appeared', text: 'Find the missing key.' })
+  })
+
+  it('prioritizes the missing-key nudge when a hidden key is still waiting to appear', () => {
+    const settings = { ...defaultPacRescueSettings, requiredKeys: 3, coinGoalPercent: 50 }
+
+    expect(instructionForProgress(
+      { coinsCollected: 4, totalCoins: 10, keysCollected: 1 },
+      settings,
+      'blocked',
+      true,
+    )).toEqual({ phase: 'key-appeared', text: 'Find the missing key.' })
   })
 })

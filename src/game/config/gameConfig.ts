@@ -2,6 +2,7 @@ export const gameConfig = {
   copy: {
     title: 'Revenge of the Eyecat',
     startPrompt: 'Move Eyecat with joystick or arrow keys.',
+    startRescuedPrompt: 'Cat rescued.',
     startHint: 'Move Eyecat with the joystick, arrow keys, or WASD. Collect coins and keys, then rescue the cat.',
     creditsLabel: 'Credits',
     musicStartLabel: 'Music: On',
@@ -50,6 +51,9 @@ export const gameConfig = {
     startArt: {
       eyecat: { x: 268, y: 390, size: 132 },
       hostage: { x: 452, y: 390, size: 118 },
+      rescueOffset: { x: 128, y: 0 },
+      rescueGlideMs: 760,
+      rescueHoldMs: 1050,
     },
   },
   storageKeys: {

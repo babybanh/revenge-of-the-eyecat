@@ -112,7 +112,10 @@ export function instructionForProgress(
     return { phase: 'rescue', text: 'Rescue the cat hostage.' }
   }
   if (phase === 'blocked') {
-    return { phase, text: 'Collect the keys and coins before reaching the cat.' }
+    if (hasHiddenKey || (requiredKeys > 1 && Math.max(0, requiredKeys - progress.keysCollected) <= 1)) {
+      return { phase: 'key-appeared', text: 'Find the missing key.' }
+    }
+    return { phase, text: requiredKeys <= 1 ? 'Find the key.' : 'Find the keys.' }
   }
   if (hasHiddenKey) {
     return { phase: 'collect-coins', text: 'Collect more coins to reveal the last key.' }

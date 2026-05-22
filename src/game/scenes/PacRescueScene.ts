@@ -273,6 +273,9 @@ export class PacRescueScene extends Phaser.Scene {
       }
     }
 
+    if (this.instructionPhase === 'blocked') {
+      this.instructionPhase = 'find-key'
+    }
     return { actor: beginStep(this.player, direction, this.level), blocked: false }
   }
 

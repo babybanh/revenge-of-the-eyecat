@@ -24,6 +24,7 @@ const POWER_INSTRUCTION_BUFFER_MS = 200
 const KEYBOARD_JOYSTICK_HIDE_MS = 1800
 const MUSIC_VOLUME = 0.36
 const SFX_VOLUME = 0.38
+type IntroPhase = 'waiting' | 'rescuing' | 'rescued'
 const SFX_PATHS = {
   coin: '/audio/sfx/eyecat-coin.wav',
   key: '/audio/sfx/eyecat-key.wav',
@@ -131,6 +132,11 @@ export default function App() {
   const rescueReminderTimer = useRef<number | undefined>(undefined)
   const rescueReminderShown = useRef(false)
   const keyboardJoystickTimer = useRef<number | undefined>(undefined)
+  const introRescueTimer = useRef<number | undefined>(undefined)
+  const introHandoffTimer = useRef<number | undefined>(undefined)
+  const introPhaseRef = useRef<IntroPhase>('waiting')
+  const introInputHeldRef = useRef(false)
+  const postIntroInputLockedRef = useRef(false)
   const musicPrimeTimer = useRef<number | undefined>(undefined)
   const musicPrimedRef = useRef(false)
   const musicWasPlayingBeforeHidden = useRef(false)
@@ -143,6 +149,7 @@ export default function App() {
   const [settings, setSettings] = useState(mapPresets[0].settings)
   const [runtime, setRuntime] = useState(() => createInitialRuntime(mapText, settings))
   const [started, setStarted] = useState(false)
+  const [introPhase, setIntroPhase] = useState<IntroPhase>('waiting')
   const [levelPaused, setLevelPaused] = useState(false)
   const [instructionVisible, setInstructionVisible] = useState(false)
   const [instructionText, setInstructionText] = useState('')
@@ -246,10 +253,10 @@ export default function App() {
     })
   }, [])
 
-  const prepareAudioFromGesture = useCallback(() => {
+  const prepareAudioFromGesture = useCallback((options: { primeMusic?: boolean } = {}) => {
     unlockAudio()
     primeSfxFromGesture()
-    primeMusicFromGesture()
+    if (options.primeMusic) primeMusicFromGesture()
   }, [primeMusicFromGesture, primeSfxFromGesture, unlockAudio])
 
   useEffect(() => {
@@ -313,6 +320,10 @@ export default function App() {
   }, [levelPaused])
 
   useEffect(() => {
+    introPhaseRef.current = introPhase
+  }, [introPhase])
+
+  useEffect(() => {
     runtimeRef.current = runtime
   }, [runtime])
 
@@ -335,6 +346,12 @@ export default function App() {
     }
     if (keyboardJoystickTimer.current) {
       window.clearTimeout(keyboardJoystickTimer.current)
+    }
+    if (introRescueTimer.current) {
+      window.clearTimeout(introRescueTimer.current)
+    }
+    if (introHandoffTimer.current) {
+      window.clearTimeout(introHandoffTimer.current)
     }
     if (musicPrimeTimer.current) {
       window.clearTimeout(musicPrimeTimer.current)
@@ -505,27 +522,45 @@ export default function App() {
         musicPrimedRef.current = false
         return
       }
-      if (musicWasPlayingBeforeHidden.current && musicEnabledRef.current) {
-        musicWasPlayingBeforeHidden.current = false
-        startMusicFromMovement()
-      }
+      musicWasPlayingBeforeHidden.current = false
     }
 
     document.addEventListener('visibilitychange', handleVisibility)
     return () => document.removeEventListener('visibilitychange', handleVisibility)
-  }, [startMusicFromMovement])
+  }, [])
 
-  const startGame = useCallback((initialInput: JoystickInput = ZERO_INPUT) => {
-    prepareAudioFromGesture()
+  const startGame = useCallback(() => {
     previousRuntime.current = null
-    joystickRef.current = { ...initialInput }
+    joystickRef.current = ZERO_INPUT
+    postIntroInputLockedRef.current = introInputHeldRef.current
     const initialRuntime = createInitialRuntime(mapText, settings)
     setRuntime(initialRuntime)
     setStarted(true)
-    setLevelPaused(false)
-    showLevelInstructionSoon(initialRuntime)
+    setLevelPaused(true)
+    setInstructionVisible(false)
+    setInstructionText('')
     setRestartToken((token) => token + 1)
-  }, [mapText, settings, showLevelInstructionSoon, prepareAudioFromGesture])
+  }, [mapText, settings])
+
+  const beginIntroRescue = useCallback(() => {
+    if (started || modalOpen || introPhaseRef.current !== 'waiting') return
+    setIntroPhase('rescuing')
+    if (introRescueTimer.current) {
+      window.clearTimeout(introRescueTimer.current)
+    }
+    if (introHandoffTimer.current) {
+      window.clearTimeout(introHandoffTimer.current)
+    }
+    introRescueTimer.current = window.setTimeout(() => {
+      introRescueTimer.current = undefined
+      setIntroPhase('rescued')
+      playSfx('win')
+      introHandoffTimer.current = window.setTimeout(() => {
+        introHandoffTimer.current = undefined
+        startGame()
+      }, gameConfig.layout.startArt.rescueHoldMs)
+    }, gameConfig.layout.startArt.rescueGlideMs)
+  }, [modalOpen, playSfx, startGame, started])
 
   useEffect(() => {
     const image = new Image()
@@ -549,26 +584,35 @@ export default function App() {
 
       if (isMovementKey(event.key)) {
         clearKeyReminder()
-        prepareAudioFromGesture()
-        startMusicFromMovement()
-        if (!modalOpen) {
-          hideJoystickForKeyboard()
-        }
         if (!started && !event.repeat && !modalOpen) {
           event.preventDefault()
+          prepareAudioFromGesture()
           keyboardStartRef.current = true
-          startGame(inputFromKey(event.key))
+          introInputHeldRef.current = true
+          beginIntroRescue()
         } else if (started && levelPausedRef.current && !modalOpen) {
           event.preventDefault()
+          if (postIntroInputLockedRef.current) return
+          prepareAudioFromGesture({ primeMusic: true })
+          startMusicFromMovement()
+          hideJoystickForKeyboard()
           resumeLevelFromPause()
+        } else if (started && !modalOpen) {
+          prepareAudioFromGesture({ primeMusic: true })
+          startMusicFromMovement()
+          hideJoystickForKeyboard()
         }
       }
     }
 
     const handleKeyUp = (event: KeyboardEvent) => {
+      if (postIntroInputLockedRef.current && isMovementKey(event.key)) {
+        postIntroInputLockedRef.current = false
+      }
       if (keyboardStartRef.current && isMovementKey(event.key)) {
         joystickRef.current = ZERO_INPUT
         keyboardStartRef.current = false
+        introInputHeldRef.current = false
       }
       if (isMovementKey(event.key) && started && !levelPausedRef.current && !modalOpen) {
         const current = runtimeRef.current
@@ -582,7 +626,7 @@ export default function App() {
       window.removeEventListener('keydown', handleKey)
       window.removeEventListener('keyup', handleKeyUp)
     }
-  }, [clearKeyReminder, hideJoystickForKeyboard, modalOpen, resumeLevelFromPause, scheduleKeyReminder, started, startGame, startMusicFromMovement, prepareAudioFromGesture])
+  }, [beginIntroRescue, clearKeyReminder, hideJoystickForKeyboard, modalOpen, resumeLevelFromPause, scheduleKeyReminder, started, startMusicFromMovement, prepareAudioFromGesture])
 
   useEffect(() => {
     if (!started || !hostRef.current) return
@@ -703,6 +747,9 @@ export default function App() {
     joystickRef.current = ZERO_INPUT
     previousRuntime.current = null
     pendingAfterPowerInstruction.current = null
+    postIntroInputLockedRef.current = false
+    introInputHeldRef.current = false
+    if (!shouldStart) setIntroPhase('waiting')
     clearKeyReminder()
     clearRescueReminder()
     keyReminderShown.current = false
@@ -780,21 +827,39 @@ export default function App() {
   }
 
   const handleJoystick = (input: JoystickInput) => {
-    joystickRef.current = input
     const isMoving = Math.hypot(input.x, input.y) > 0.12
+    if (!started) {
+      joystickRef.current = ZERO_INPUT
+      introInputHeldRef.current = isMoving
+      if (isMoving && !modalOpen) {
+        clearKeyReminder()
+        prepareAudioFromGesture()
+        if (keyboardJoystickTimer.current) {
+          window.clearTimeout(keyboardJoystickTimer.current)
+          keyboardJoystickTimer.current = undefined
+        }
+        setKeyboardJoystickHidden(false)
+        keyboardStartRef.current = false
+        beginIntroRescue()
+      }
+      return
+    }
+    if (postIntroInputLockedRef.current) {
+      joystickRef.current = ZERO_INPUT
+      if (!isMoving) postIntroInputLockedRef.current = false
+      return
+    }
+    joystickRef.current = input
     if (isMoving) {
       clearKeyReminder()
-      prepareAudioFromGesture()
+      prepareAudioFromGesture({ primeMusic: true })
       if (keyboardJoystickTimer.current) {
         window.clearTimeout(keyboardJoystickTimer.current)
         keyboardJoystickTimer.current = undefined
       }
       setKeyboardJoystickHidden(false)
       startMusicFromMovement()
-      if (!started && !modalOpen) {
-        keyboardStartRef.current = false
-        startGame(input)
-      } else if (started && levelPaused && !modalOpen) {
+      if (levelPaused && !modalOpen) {
         resumeLevelFromPause()
       }
     } else if (started && !levelPaused && !modalOpen) {
@@ -874,11 +939,13 @@ export default function App() {
         />
 
         {!started ? (
-          <div className="start-overlay" aria-hidden="true">
+          <div className={`start-overlay start-phase-${introPhase}`} aria-hidden="true">
             <span className="start-blur-layer" />
-            <img className="start-eyecat" style={squareCenterStyle(gameConfig.layout.startArt.eyecat)} src={gameConfig.assets.player} alt="" />
+            <img className="start-eyecat" style={squareCenterStyle(introEyecatSquare(introPhase))} src={gameConfig.assets.player} alt="" />
             <img className="start-hostage" style={squareCenterStyle(gameConfig.layout.startArt.hostage)} src={gameConfig.assets.hostage} alt="" />
-            <span className="start-control-prompt" style={centeredTextStyle(gameConfig.layout.prompt)}>{gameConfig.copy.startPrompt}</span>
+            <span className="start-control-prompt" style={centeredTextStyle(gameConfig.layout.prompt)}>
+              {introPhase === 'rescued' ? gameConfig.copy.startRescuedPrompt : gameConfig.copy.startPrompt}
+            </span>
           </div>
         ) : null}
 
@@ -978,12 +1045,8 @@ function MoveJoystick({
   const [stick, setStick] = useState<JoystickInput>({ x: 0, y: 0 })
   const [activeBase, setActiveBase] = useState<{ x: number; y: number } | null>(null)
 
-  const update = (event: React.PointerEvent<HTMLDivElement>, base = activeBaseRef.current) => {
-    if (disabled) return
-    event.preventDefault()
-    const rect = zone.current?.getBoundingClientRect()
-    if (!rect || !base) return
-    const point = pointerToDesignPoint(event, rect, zoneConfig)
+  const applyPoint = (point: { x: number; y: number }, base = activeBaseRef.current) => {
+    if (!base) return
     const dx = point.x - base.x
     const dy = point.y - base.y
     const radius = center.radius
@@ -1001,9 +1064,68 @@ function MoveJoystick({
     onChange({ x: 0, y: 0 })
   }
 
+  useEffect(() => {
+    const node = zone.current
+    if (!node) return undefined
+
+    const options: AddEventListenerOptions = { passive: false }
+    const touchToPoint = (touch: Touch) => {
+      const rect = node.getBoundingClientRect()
+      return pointerToDesignPoint(touch, rect, zoneConfig)
+    }
+    const guardTouch = (event: TouchEvent) => {
+      if (disabled) return
+      event.preventDefault()
+      clearBrowserTouchArtifacts()
+      const touch = event.touches[0] ?? event.changedTouches[0]
+      if (!touch) return
+      if (event.type === 'touchend' || event.type === 'touchcancel') {
+        reset()
+        return
+      }
+      const point = touchToPoint(touch)
+      if (event.type === 'touchstart') {
+        onPrepareGesture()
+        activeBaseRef.current = point
+        setActiveBase(point)
+        applyPoint(point, point)
+        return
+      }
+      applyPoint(point)
+    }
+    const guardGesture = (event: Event) => {
+      if (disabled) return
+      event.preventDefault()
+      clearBrowserTouchArtifacts()
+    }
+
+    node.addEventListener('touchstart', guardTouch, options)
+    node.addEventListener('touchmove', guardTouch, options)
+    node.addEventListener('touchend', guardTouch, options)
+    node.addEventListener('touchcancel', guardTouch, options)
+    node.addEventListener('gesturestart', guardGesture, options)
+    return () => {
+      node.removeEventListener('touchstart', guardTouch, options)
+      node.removeEventListener('touchmove', guardTouch, options)
+      node.removeEventListener('touchend', guardTouch, options)
+      node.removeEventListener('touchcancel', guardTouch, options)
+      node.removeEventListener('gesturestart', guardGesture, options)
+    }
+  })
+
+  const update = (event: React.PointerEvent<HTMLDivElement>, base = activeBaseRef.current) => {
+    if (disabled) return
+    event.preventDefault()
+    clearBrowserTouchArtifacts()
+    const rect = zone.current?.getBoundingClientRect()
+    if (!rect || !base) return
+    applyPoint(pointerToDesignPoint(event, rect, zoneConfig), base)
+  }
+
   const startDrag = (event: React.PointerEvent<HTMLDivElement>) => {
     if (disabled) return
     event.preventDefault()
+    clearBrowserTouchArtifacts()
     onPrepareGesture()
     const rect = zone.current?.getBoundingClientRect()
     if (!rect) return
@@ -1045,7 +1167,7 @@ function MoveJoystick({
 }
 
 function pointerToDesignPoint(
-  event: React.PointerEvent<HTMLDivElement>,
+  event: { clientX: number; clientY: number },
   rect: DOMRect,
   zone: { x: number; y: number; width: number; height: number },
 ) {
@@ -1053,6 +1175,13 @@ function pointerToDesignPoint(
     x: zone.x + ((event.clientX - rect.left) / rect.width) * zone.width,
     y: zone.y + ((event.clientY - rect.top) / rect.height) * zone.height,
   }
+}
+
+function clearBrowserTouchArtifacts() {
+  const selection = window.getSelection()
+  if (selection?.rangeCount) selection.removeAllRanges()
+  const activeElement = document.activeElement
+  if (activeElement instanceof HTMLElement && activeElement !== document.body) activeElement.blur()
 }
 
 function CreditsModal({ onClose }: { onClose: () => void }) {
@@ -1210,14 +1339,6 @@ function isMovementKey(key: string): boolean {
   return ['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'w', 'a', 's', 'd', 'W', 'A', 'S', 'D'].includes(key)
 }
 
-function inputFromKey(key: string): JoystickInput {
-  if (key === 'ArrowLeft' || key === 'a' || key === 'A') return { x: -1, y: 0 }
-  if (key === 'ArrowRight' || key === 'd' || key === 'D') return { x: 1, y: 0 }
-  if (key === 'ArrowUp' || key === 'w' || key === 'W') return { x: 0, y: -1 }
-  if (key === 'ArrowDown' || key === 's' || key === 'S') return { x: 0, y: 1 }
-  return ZERO_INPUT
-}
-
 function shouldShowInstructionNotice(previous: RuntimeSnapshot, current: RuntimeSnapshot): boolean {
   if (current.status === 'won') return false
   return current.keysCollected > previous.keysCollected
@@ -1225,7 +1346,7 @@ function shouldShowInstructionNotice(previous: RuntimeSnapshot, current: Runtime
     || current.frightRemaining > previous.frightRemaining
     || current.status !== previous.status
     || (current.instructionPhase === 'key-appeared' && previous.instructionPhase !== 'key-appeared')
-    || current.instructionPhase === 'blocked'
+    || (current.instructionPhase === 'blocked' && previous.instructionPhase !== 'blocked')
 }
 
 function compactInstruction(runtime: RuntimeSnapshot): string {
@@ -1234,9 +1355,10 @@ function compactInstruction(runtime: RuntimeSnapshot): string {
   if (runtime.status === 'won') return ''
   if (runtime.status === 'gameover') return 'Back to level 1.'
   if (runtime.lives < runtime.maxLives && runtime.message.toLowerCase().includes('heart')) return 'Caught.'
+  if (runtime.instructionPhase === 'blocked') return blockedRescueInstruction(runtime)
   if (runtime.keysCollected >= runtime.requiredKeys) return 'Rescue the cat.'
   if (runtime.frightRemaining > 0) return 'Eyecat is invincible.'
-  if (runtime.instructionPhase === 'key-appeared' || (missingKeys <= 1 && hasVisibleMissingKey)) return 'Find the missing key.'
+  if (runtime.instructionPhase === 'key-appeared' || (runtime.requiredKeys > 1 && missingKeys <= 1 && hasVisibleMissingKey)) return 'Find the missing key.'
   if (missingKeys <= 1) return ''
   return 'Find the keys.'
 }
@@ -1246,7 +1368,11 @@ function instructionAfterPower(runtime: RuntimeSnapshot): string {
   const hasVisibleMissingKey = runtime.keysVisible > 0
   if (runtime.status !== 'playing') return ''
   if (runtime.keysCollected >= runtime.requiredKeys) return 'Rescue the cat.'
-  if (runtime.instructionPhase === 'key-appeared' || (missingKeys <= 1 && hasVisibleMissingKey)) return 'Find the missing key.'
+  if (
+    runtime.instructionPhase === 'key-appeared'
+    || hasHiddenMissingKey(runtime)
+    || (runtime.requiredKeys > 1 && missingKeys <= 1 && hasVisibleMissingKey)
+  ) return 'Find the missing key.'
   return ''
 }
 
@@ -1259,6 +1385,16 @@ function phaseForInstruction(text: string, runtime: RuntimeSnapshot): Instructio
 
 function startLevelInstruction(runtime: RuntimeSnapshot): string {
   return runtime.requiredKeys <= 1 ? 'Find the key.' : 'Find the keys.'
+}
+
+function blockedRescueInstruction(runtime: RuntimeSnapshot): string {
+  const missingKeys = Math.max(0, runtime.requiredKeys - runtime.keysCollected)
+  if (hasHiddenMissingKey(runtime) || (runtime.requiredKeys > 1 && missingKeys <= 1)) return 'Find the missing key.'
+  return missingKeys <= 1 ? 'Find the key.' : 'Find the keys.'
+}
+
+function hasHiddenMissingKey(runtime: RuntimeSnapshot): boolean {
+  return runtime.requiredKeys > 1 && runtime.keysCollected + runtime.keysVisible < runtime.requiredKeys
 }
 
 function rectStyle(rect: { x: number; y: number; width: number; height: number }): CSSProperties {
@@ -1294,6 +1430,16 @@ function squareCenterStyle(square: { x: number; y: number; size: number }): CSSP
     width: square.size,
     height: square.size,
   })
+}
+
+function introEyecatSquare(phase: IntroPhase): { x: number; y: number; size: number } {
+  const eyecat = gameConfig.layout.startArt.eyecat
+  if (phase === 'waiting') return eyecat
+  return {
+    ...eyecat,
+    x: eyecat.x + gameConfig.layout.startArt.rescueOffset.x,
+    y: eyecat.y + gameConfig.layout.startArt.rescueOffset.y,
+  }
 }
 
 function heartLossStyle(popup: HeartLossPopup): CSSProperties {
