@@ -780,7 +780,9 @@ export default function App() {
         getJoystick: () => joystickRef.current,
         isPaused: () => levelPausedRef.current,
         onRuntime: (snapshot) => setRuntime({ ...snapshot }),
-        onCoinCollected: () => playSfx('coin'),
+        onCoinCollected: () => {
+          if (shouldPlayCoinSfxForDevice()) playSfx('coin')
+        },
         onTileClick: () => undefined,
       }),
     })
@@ -1328,6 +1330,14 @@ function clearBrowserTouchArtifacts() {
   if (selection?.rangeCount) selection.removeAllRanges()
   const activeElement = document.activeElement
   if (activeElement instanceof HTMLElement && activeElement !== document.body) activeElement.blur()
+}
+
+function shouldPlayCoinSfxForDevice(): boolean {
+  if (typeof window === 'undefined' || typeof navigator === 'undefined') return true
+  const hasCoarsePointer = window.matchMedia?.('(pointer: coarse)').matches ?? false
+  const hasTouch = navigator.maxTouchPoints > 0
+  const inAppBrowser = /FBAN|FBAV|FBIOS|FB_IAB|Instagram|Messenger|Line|MicroMessenger/i.test(navigator.userAgent)
+  return !(hasCoarsePointer || hasTouch || inAppBrowser)
 }
 
 function CreditsModal({ onClose }: { onClose: () => void }) {
