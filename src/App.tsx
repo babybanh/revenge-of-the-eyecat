@@ -158,6 +158,7 @@ export default function App() {
   const musicPrimeTimer = useRef<number | undefined>(undefined)
   const musicPrimedRef = useRef(false)
   const musicWasPlayingBeforeHidden = useRef(false)
+  const musicPausedByBackgroundRef = useRef(false)
   const sfxPrimedRef = useRef(false)
   const sfxPrimePendingRef = useRef(false)
   const audioUnlockedRef = useRef(false)
@@ -665,6 +666,7 @@ export default function App() {
   const startMusicFromMovement = useCallback(() => {
     const audio = musicRef.current
     if (!audio || !musicEnabledRef.current || musicStartedRef.current) return
+    musicPausedByBackgroundRef.current = false
     if (musicPrimeTimer.current) {
       window.clearTimeout(musicPrimeTimer.current)
       musicPrimeTimer.current = undefined
@@ -688,25 +690,60 @@ export default function App() {
   }, [])
 
   useEffect(() => {
-    const handleVisibility = () => {
+    const pauseMusicForBackground = () => {
       const audio = musicRef.current
       if (!audio) return
-      if (document.hidden) {
-        musicWasPlayingBeforeHidden.current = !audio.paused && musicEnabledRef.current
-        if (musicPrimeTimer.current) {
-          window.clearTimeout(musicPrimeTimer.current)
-          musicPrimeTimer.current = undefined
-        }
-        audio.pause()
-        setMusicStarted(false)
-        musicPrimedRef.current = false
-        return
+      musicWasPlayingBeforeHidden.current = !audio.paused && musicEnabledRef.current
+      musicPausedByBackgroundRef.current = true
+      if (musicPrimeTimer.current) {
+        window.clearTimeout(musicPrimeTimer.current)
+        musicPrimeTimer.current = undefined
       }
+      audio.pause()
+      audio.muted = false
+      audio.volume = MUSIC_VOLUME
+      musicStartedRef.current = false
+      musicPrimedRef.current = false
+      setMusicStarted(false)
+    }
+
+    const keepMusicPausedAfterReturn = () => {
+      if (!musicPausedByBackgroundRef.current) return
+      const audio = musicRef.current
+      if (!audio) return
+      if (musicPrimeTimer.current) {
+        window.clearTimeout(musicPrimeTimer.current)
+        musicPrimeTimer.current = undefined
+      }
+      audio.pause()
+      audio.muted = false
+      audio.volume = MUSIC_VOLUME
+      musicStartedRef.current = false
+      musicPrimedRef.current = false
+      setMusicStarted(false)
       musicWasPlayingBeforeHidden.current = false
     }
 
+    const handleVisibility = () => {
+      if (document.hidden) {
+        pauseMusicForBackground()
+        return
+      }
+      keepMusicPausedAfterReturn()
+    }
+
     document.addEventListener('visibilitychange', handleVisibility)
-    return () => document.removeEventListener('visibilitychange', handleVisibility)
+    window.addEventListener('pagehide', pauseMusicForBackground)
+    window.addEventListener('pageshow', keepMusicPausedAfterReturn)
+    window.addEventListener('blur', pauseMusicForBackground)
+    window.addEventListener('focus', keepMusicPausedAfterReturn)
+    return () => {
+      document.removeEventListener('visibilitychange', handleVisibility)
+      window.removeEventListener('pagehide', pauseMusicForBackground)
+      window.removeEventListener('pageshow', keepMusicPausedAfterReturn)
+      window.removeEventListener('blur', pauseMusicForBackground)
+      window.removeEventListener('focus', keepMusicPausedAfterReturn)
+    }
   }, [])
 
   const startGame = useCallback(() => {
