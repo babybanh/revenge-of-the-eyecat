@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from 'react'
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode, type Ref } from 'react'
 import Phaser from 'phaser'
 import './App.css'
 import { defaultPacRescueLevelMaps, defaultPacRescueSettings } from './game/pacrescue/defaults'
@@ -1127,10 +1127,10 @@ export default function App() {
 
         <header className="game-topbar" style={rectStyle(gameConfig.layout.topBar)}>
           <button className="title-button" type="button" onClick={openConcept} title="View original game idea">
-            <span>{gameConfig.copy.title}</span>
+            <FitText>{gameConfig.copy.title}</FitText>
           </button>
           <div className="key-strip" aria-label={`${runtime.keysCollected} of ${runtime.requiredKeys} keys collected`}>
-            Keys: {runtime.keysCollected}/{runtime.requiredKeys}
+            <FitText>{`Keys: ${runtime.keysCollected}/${runtime.requiredKeys}`}</FitText>
           </div>
           <div className="heart-strip" aria-label={`${runtime.lives} of ${runtime.maxLives} hearts left`}>
             {Array.from({ length: Math.max(0, runtime.lives) }, (_, index) => (
@@ -1151,18 +1151,20 @@ export default function App() {
         <footer className="bottom-controls" style={rectStyle(gameConfig.layout.bottomControls)} aria-hidden="true" />
         {started && levelPaused ? (
           <div className="level-ready-prompt" style={centeredTextStyle(gameConfig.layout.eventPrompt)}>
-            <strong>{`Level ${activeIndex + 1}`}</strong>
+            <FitText as="strong">{`Level ${activeIndex + 1}`}</FitText>
           </div>
         ) : null}
         {started && instructionText && !levelPaused ? (
           <div className={`instruction-panel phase-${instructionPhase} ${instructionVisible ? 'is-visible' : ''}`} style={centeredTextStyle(gameConfig.layout.eventPrompt)} aria-hidden={!instructionVisible}>
-            <span>{instructionText}</span>
+            <FitText>{instructionText}</FitText>
           </div>
         ) : null}
         <div className="button-row">
-          <button className="control-button credits-button" style={rectStyle(gameConfig.layout.buttons.credits)} type="button" onClick={openCredits}>{gameConfig.copy.creditsLabel}</button>
+          <button className="control-button credits-button" style={rectStyle(gameConfig.layout.buttons.credits)} type="button" onClick={openCredits}>
+            <FitText>{gameConfig.copy.creditsLabel}</FitText>
+          </button>
           <button className={`control-button music-button ${musicEnabled ? 'active' : ''}`} style={rectStyle(gameConfig.layout.buttons.music)} type="button" onClick={toggleMusic}>
-            {musicEnabled ? (musicStarted ? gameConfig.copy.musicOnLabel : gameConfig.copy.musicStartLabel) : gameConfig.copy.musicOffLabel}
+            <FitText>{musicEnabled ? (musicStarted ? gameConfig.copy.musicOnLabel : gameConfig.copy.musicStartLabel) : gameConfig.copy.musicOffLabel}</FitText>
           </button>
         </div>
         <MoveJoystick
@@ -1256,6 +1258,47 @@ function StartPreview() {
       <span className="preview-coin-dot" />
     </div>
   )
+}
+
+function FitText({ as = 'span', children }: { as?: 'span' | 'strong'; children: ReactNode }) {
+  const ref = useRef<HTMLElement | null>(null)
+
+  useLayoutEffect(() => {
+    const node = ref.current
+    if (!node) return undefined
+
+    const fit = () => {
+      node.style.fontSize = ''
+      const baseFontSize = Number.parseFloat(window.getComputedStyle(node).fontSize)
+      if (!Number.isFinite(baseFontSize) || baseFontSize <= 0) return
+
+      const widthScale = node.clientWidth > 0 && node.scrollWidth > node.clientWidth
+        ? node.clientWidth / node.scrollWidth
+        : 1
+      const heightScale = node.clientHeight > 0 && node.scrollHeight > node.clientHeight
+        ? node.clientHeight / node.scrollHeight
+        : 1
+      const scale = Math.max(0.62, Math.min(1, widthScale, heightScale))
+      if (scale < 0.995) {
+        node.style.fontSize = `${Math.max(5, baseFontSize * scale)}px`
+      }
+    }
+
+    fit()
+    const resizeObserver = new ResizeObserver(fit)
+    resizeObserver.observe(node)
+    window.visualViewport?.addEventListener('resize', fit)
+    window.addEventListener('resize', fit)
+
+    return () => {
+      resizeObserver.disconnect()
+      window.visualViewport?.removeEventListener('resize', fit)
+      window.removeEventListener('resize', fit)
+    }
+  }, [children])
+
+  const Component = as
+  return <Component className="fit-text" ref={ref as Ref<HTMLElement>}>{children}</Component>
 }
 
 function MoveJoystick({

@@ -186,12 +186,23 @@ a:focus-visible {
   line-height: 1;
 }
 
+.fit-text {
+  display: block;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .key-strip {
   position: absolute;
   left: 53.4375%;
   top: 50%;
   transform: translateY(-50%);
   color: var(--cocoa-soft);
+  max-width: 28%;
+  overflow: hidden;
+  text-overflow: ellipsis;
   font-size: clamp(12px, 2.45cqw, 18px);
   font-weight: 650;
   line-height: 1;
@@ -308,9 +319,11 @@ a:focus-visible {
 .level-ready-prompt {
   display: block;
   min-height: 26px;
+  max-width: calc(100% - 28px);
+  overflow: hidden;
   padding: 4px 11px 3px;
   border-radius: 13px;
-  font-size: clamp(9px, 1.72cqw, 13px);
+  font-size: clamp(10px, 1.9cqw, 14px);
   font-weight: 650;
   line-height: 1;
 }
@@ -337,6 +350,9 @@ a:focus-visible {
 }
 
 .instruction-panel span {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
   color: inherit;
   font: inherit;
   white-space: nowrap;
@@ -409,15 +425,21 @@ a:focus-visible {
 .control-button {
   position: absolute;
   z-index: 50;
+  min-width: 0;
+  overflow: hidden;
   padding: 0;
   border-radius: clamp(12px, 3.0556cqw, 22px);
   background: linear-gradient(#fff7e8, var(--gold));
   box-shadow:
     0 clamp(3px, 0.8334cqw, 6px) 0 var(--button-shadow),
     0 clamp(6px, 1.6667cqw, 12px) clamp(10px, 2.7778cqw, 20px) rgba(5, 8, 18, 0.18);
-  font-size: clamp(7px, 2.0834cqw, 15px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: clamp(9px, 2.45cqw, 16px);
   font-weight: 600;
   line-height: 1;
+  text-overflow: ellipsis;
   white-space: nowrap;
   pointer-events: auto;
 }

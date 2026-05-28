@@ -17,11 +17,10 @@ Those folders may contain Pac Rescue, Moon Moth, or editor/prototype shells. For
 
 ## Current Baseline
 
-As of May 28, 2026, the latest pushed gameplay/layout baseline is:
+As of May 28, 2026, the active gameplay/layout baseline is the `main` branch of this repo. Notable mobile Safari layout work:
 
 - Commit `ca84bc4` - `Lock mobile viewport scale`
-
-That patch locks the mobile viewport scale and disables mobile text auto-inflation to keep the fixed 720x840 PIK game shell from spilling text when phones zoom in or out.
+- Later follow-up: fit fixed-slot HUD/button/notice text so iPhone Safari page/text zoom cannot spill labels outside their game-shell slots.
 
 Before pushing future gameplay changes, run:
 
