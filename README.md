@@ -6,6 +6,8 @@ This game uses the Eyecat Pacman-like rescue prototype as its mechanics foundati
 
 Live MVP: <https://revenge-of-the-eyecat.vercel.app>
 
+Codex context: see `AGENTS.md` first. This repo, not the older `(May21) Codex` prototype folder, is the GitHub/Vercel-connected Revenge of the Eyecat app.
+
 ## Run Locally
 
 ```bash
