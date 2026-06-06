@@ -137,6 +137,8 @@ export default function App() {
   const sfxBufferLoadsRef = useRef(new Map<SfxType, Promise<AudioBuffer | null>>())
   const queuedSfxRef = useRef<SfxType[]>([])
   const joystickRef = useRef<JoystickInput>({ x: 0, y: 0 })
+  const movementInputActiveRef = useRef(false)
+  const pressedMovementKeysRef = useRef(new Set<string>())
   const levelPausedRef = useRef(false)
   const keyboardStartRef = useRef(false)
   const runtimeRef = useRef<RuntimeSnapshot | null>(null)
@@ -802,6 +804,9 @@ export default function App() {
       }
 
       if (isMovementKey(event.key)) {
+        const keyId = event.key.toLowerCase()
+        const firstPress = !pressedMovementKeysRef.current.has(keyId)
+        pressedMovementKeysRef.current.add(keyId)
         clearKeyReminder()
         if (!started && !event.repeat && !modalOpen) {
           event.preventDefault()
@@ -816,7 +821,7 @@ export default function App() {
           startMusicFromMovement()
           hideJoystickForKeyboard()
           resumeLevelFromPause()
-        } else if (started && !modalOpen) {
+        } else if (started && !modalOpen && (firstPress || !musicStartedRef.current)) {
           prepareAudioFromGesture({ primeMusic: true })
           startMusicFromMovement()
           hideJoystickForKeyboard()
@@ -825,6 +830,9 @@ export default function App() {
     }
 
     const handleKeyUp = (event: KeyboardEvent) => {
+      if (isMovementKey(event.key)) {
+        pressedMovementKeysRef.current.delete(event.key.toLowerCase())
+      }
       if (postIntroInputLockedRef.current && isMovementKey(event.key)) {
         postIntroInputLockedRef.current = false
       }
@@ -980,6 +988,8 @@ export default function App() {
   const switchPreset = useCallback((index: number, shouldStart: boolean, shouldPause = false) => {
     const preset = mapPresets[index] ?? mapPresets[0]
     joystickRef.current = ZERO_INPUT
+    movementInputActiveRef.current = false
+    pressedMovementKeysRef.current.clear()
     previousRuntime.current = null
     pendingAfterPowerInstruction.current = null
     postIntroInputLockedRef.current = false
@@ -1067,10 +1077,12 @@ export default function App() {
 
   const handleJoystick = (input: JoystickInput) => {
     const isMoving = Math.hypot(input.x, input.y) > 0.12
+    const startedMoving = isMoving && !movementInputActiveRef.current
+    movementInputActiveRef.current = isMoving
     if (!started) {
       joystickRef.current = ZERO_INPUT
       introInputHeldRef.current = isMoving
-      if (isMoving && !modalOpen) {
+      if (startedMoving && !modalOpen) {
         clearKeyReminder()
         prepareAudioFromGesture()
         if (keyboardJoystickTimer.current) {
@@ -1091,13 +1103,15 @@ export default function App() {
     joystickRef.current = input
     if (isMoving) {
       clearKeyReminder()
-      prepareAudioFromGesture({ primeMusic: true })
       if (keyboardJoystickTimer.current) {
         window.clearTimeout(keyboardJoystickTimer.current)
         keyboardJoystickTimer.current = undefined
       }
       setKeyboardJoystickHidden(false)
-      startMusicFromMovement()
+      if (startedMoving || levelPaused || !musicStartedRef.current) {
+        prepareAudioFromGesture({ primeMusic: true })
+        startMusicFromMovement()
+      }
       if (levelPaused && !modalOpen) {
         resumeLevelFromPause()
       }

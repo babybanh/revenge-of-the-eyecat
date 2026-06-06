@@ -23,7 +23,15 @@ Use these notes when tuning Revenge of the Eyecat or copying the fix into the PI
 
 - Do not start the MP3 during tutorial-only motion if the design says the tutorial is SFX-only.
 - Start the soundtrack from the first real gameplay movement, such as Level 1 movement after the intro handoff.
+- Keep soundtrack start edge-triggered. A held joystick or repeated keydown should not keep calling audio preparation or `audio.play()` while music is already playing.
 - If the app returns from the background, keep music paused until the next real movement gesture.
+
+## June 2026 Eyecat Audit
+
+- Current Eyecat music is not called from the Phaser frame loop.
+- `startMusicFromMovement()` marks music as started before the `play()` promise resolves, so repeated movement events return early.
+- Joystick and keyboard movement now only trigger audio prep/start when movement begins, when a paused level resumes, or when music is known to be stopped.
+- Coin/dot SFX remains disabled on touch/coarse-pointer browsers because repeated pickup audio made mobile movement jerky; desktop/laptop keeps the coin sound.
 
 ## QA Targets
 
