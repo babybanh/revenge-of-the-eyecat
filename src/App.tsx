@@ -124,6 +124,7 @@ const mapPresets: MapPreset[] = defaultPacRescueLevelMaps.map((level, index) => 
 ))
 
 export default function App() {
+  const shellRef = useRef<HTMLElement | null>(null)
   const hostRef = useRef<HTMLDivElement | null>(null)
   const gameRef = useRef<Phaser.Game | null>(null)
   const musicRef = useRef<HTMLAudioElement | null>(null)
@@ -194,6 +195,47 @@ export default function App() {
     '--spot-joy-y': `${toPercent(gameConfig.layout.joystick.y, gameConfig.layout.designHeight)}`,
     '--spot-joy-r': `${toPercent(gameConfig.layout.joystick.radius, gameConfig.layout.designWidth)}`,
   }) as CSSProperties, [])
+
+  useLayoutEffect(() => {
+    const node = shellRef.current
+    if (!node) return undefined
+
+    const syncCreditsScale = () => {
+      const viewport = window.visualViewport
+      const viewportWidth = Math.max(260, Math.round(viewport?.width ?? window.innerWidth))
+      const viewportHeight = Math.max(300, Math.round(viewport?.height ?? window.innerHeight))
+      const shellWidth = node.getBoundingClientRect().width || Math.min(viewportWidth, viewportHeight)
+      const availableWidth = Math.max(1, Math.min(shellWidth - 28, viewportWidth - 28))
+      const availableHeight = Math.max(1, viewportHeight * 0.88)
+      const creditsScale = Math.min(1, availableWidth / 540, availableHeight / 360)
+      node.style.setProperty('--credits-scale', `${Math.max(0.1, creditsScale).toFixed(3)}`)
+    }
+
+    const scheduleCreditsScale = () => {
+      syncCreditsScale()
+      window.requestAnimationFrame(syncCreditsScale)
+      window.setTimeout(syncCreditsScale, 120)
+      window.setTimeout(syncCreditsScale, 420)
+    }
+
+    const resizeObserver = new ResizeObserver(scheduleCreditsScale)
+    resizeObserver.observe(node)
+    scheduleCreditsScale()
+    window.addEventListener('resize', scheduleCreditsScale)
+    window.addEventListener('orientationchange', scheduleCreditsScale)
+    window.addEventListener('pageshow', scheduleCreditsScale)
+    window.visualViewport?.addEventListener('resize', scheduleCreditsScale)
+    window.visualViewport?.addEventListener('scroll', scheduleCreditsScale)
+
+    return () => {
+      resizeObserver.disconnect()
+      window.removeEventListener('resize', scheduleCreditsScale)
+      window.removeEventListener('orientationchange', scheduleCreditsScale)
+      window.removeEventListener('pageshow', scheduleCreditsScale)
+      window.visualViewport?.removeEventListener('resize', scheduleCreditsScale)
+      window.visualViewport?.removeEventListener('scroll', scheduleCreditsScale)
+    }
+  }, [])
 
   const getSfxPlayers = useCallback((type: SfxType) => {
     const existing = sfxPlayersRef.current.get(type)
@@ -1136,7 +1178,7 @@ export default function App() {
   return (
     <main className="page-shell" style={shellStyle}>
       <audio ref={musicRef} preload="auto" src={MUSIC_PATH} />
-      <section className={`game-shell ${started ? 'is-playing' : 'is-intro'}`} aria-label="Revenge of the Eyecat game">
+      <section ref={shellRef} className={`game-shell ${started ? 'is-playing' : 'is-intro'}`} aria-label="Revenge of the Eyecat game">
         {loading ? <div className="loading-screen" aria-hidden="true" /> : null}
 
         <header className="game-topbar" style={rectStyle(gameConfig.layout.topBar)}>
@@ -1495,17 +1537,24 @@ function shouldAvoidHtmlSfxFallbackForDevice(): boolean {
 function CreditsModal({ onClose }: { onClose: () => void }) {
   return (
     <div className="modal-overlay credits-modal" role="dialog" aria-modal="true" aria-label="Credits" onClick={onClose}>
-      <div className="modal-card" onClick={(event) => event.stopPropagation()}>
-        <button className="modal-close" type="button" onClick={onClose} aria-label="Close">×</button>
-        <a className="modal-title" href={gameConfig.credits.contestUrl} target="_blank" rel="noreferrer">{gameConfig.credits.contestTitle}</a>
-        <p className="credits-copy">
-          <span>Original music and characters by</span>
-          <a href={gameConfig.credits.youtubeUrl} target="_blank" rel="noreferrer">{gameConfig.credits.studentName}</a>
-        </p>
-        <p className="credits-copy">
-          <span>Game design and development by</span>
-          <a href={`mailto:${gameConfig.credits.designerEmail}`}>{gameConfig.credits.designerName}</a>
-        </p>
+      <div className="modal-card" role="document" onClick={(event) => event.stopPropagation()}>
+        <button className="modal-close" type="button" onClick={onClose} aria-label="Close credits">×</button>
+        <h2 className="modal-title">{gameConfig.copy.title}</h2>
+        <section className="credits-copy" aria-label="Music and characters credit">
+          <span className="credits-line">Music and characters by <strong className="credits-name">{gameConfig.credits.studentName}</strong></span>
+          <a className="credits-link" href={gameConfig.credits.studentVideoUrl} target="_blank" rel="noreferrer" aria-label="Watch Cassia's performance on YouTube">Watch performance</a>
+        </section>
+        <section className="credits-copy" aria-label="Game design and development credit">
+          <span className="credits-line">Game created by <strong className="credits-name">{gameConfig.credits.designerName}</strong></span>
+          <a className="credits-link" href={gameConfig.credits.developerUrl} target="_blank" rel="noreferrer" aria-label="Visit Le Binh Anh Nguyen's website">Visit website</a>
+        </section>
+        <section className="credits-copy" aria-label="Contest credit">
+          <span className="credits-line">From the <strong className="credits-name">{gameConfig.credits.contestName}</strong></span>
+          <div className="credits-link-row">
+            <a className="credits-link" href={gameConfig.credits.contestMagazineUrl} target="_blank" rel="noreferrer" aria-label="Read the Piano Inspires Kids magazine">Read the magazine</a>
+            <a className="credits-link" href={gameConfig.credits.contestPlaylistUrl} target="_blank" rel="noreferrer" aria-label="Watch Piano Inspires Kids Composition Contest winners playlist on YouTube">Watch winners playlist</a>
+          </div>
+        </section>
       </div>
     </div>
   )
