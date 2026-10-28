@@ -27,11 +27,16 @@ export const gameConfig = {
   credits: {
     studentName: 'Cassia',
     contestTitle: 'PIK Composition Contest 2026',
+    contestName: 'Piano Inspires Kids Composition Contest',
     contestUrl: 'https://youtube.com/playlist?list=PLhhleIn9mEjhNAztK55u86m13lu6xpqoM&si=9kGz8asDtaMO3Wy8',
+    contestPlaylistUrl: 'https://youtube.com/playlist?list=PLhhleIn9mEjhNAztK55u86m13lu6xpqoM&si=9kGz8asDtaMO3Wy8',
+    contestMagazineUrl: 'https://kids.pianoinspires.com/magazine/',
     studentCredit: 'Original music and characters by Cassia',
     youtubeUrl: 'https://youtu.be/sr8MUHoempk?si=fSSh9eexR-s-zNS8',
+    studentVideoUrl: 'https://youtu.be/sr8MUHoempk?si=fSSh9eexR-s-zNS8',
     designerName: 'Le Binh Anh Nguyen',
     designerEmail: 'binhanhpiano96@gmail.com',
+    developerUrl: 'https://www.coastal.edu/academics/facultyprofiles/humanities/music/lebinhanhnguyen/',
     developerCredit: 'Game design and development by Le Binh Anh Nguyen and Codex',
   },
   layout: {
