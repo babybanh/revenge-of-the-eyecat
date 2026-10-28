@@ -461,9 +461,20 @@ export default function App() {
 
   const prepareAudioFromGesture = useCallback((options: { primeMusic?: boolean } = {}) => {
     unlockAudio()
+    if (shouldAvoidHtmlSfxFallbackForDevice()) {
+      const context = getSfxContext()
+      if (context && context.state !== 'running' && context.state !== 'closed') {
+        // Retry on fresh input: Safari can leave an earlier resume pending until
+        // touchend. Never attempt this from a coin collision.
+        void context.resume()
+          .then(() => { if (!document.hidden) pulseSfxContextFromGesture(context) })
+          .catch(() => undefined)
+        pulseSfxContextFromGesture(context)
+      }
+    }
     primeSfxFromGesture()
     if (options.primeMusic) primeMusicFromGesture()
-  }, [primeMusicFromGesture, primeSfxFromGesture, unlockAudio])
+  }, [getSfxContext, primeMusicFromGesture, primeSfxFromGesture, pulseSfxContextFromGesture, unlockAudio])
 
   useEffect(() => {
     const prepare = () => prepareAudioFromGesture()
