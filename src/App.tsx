@@ -135,6 +135,7 @@ export default function App() {
   const sfxCursorRef = useRef(new Map<SfxType, number>())
   const lastSfxAtRef = useRef(new Map<SfxType, number>())
   const sfxContextRef = useRef<AudioContext | null>(null)
+  const sfxResumePendingRef = useRef<Promise<void> | null>(null)
   const sfxBuffersRef = useRef(new Map<SfxType, AudioBuffer>())
   const sfxBufferLoadsRef = useRef(new Map<SfxType, Promise<AudioBuffer | null>>())
   const queuedSfxRef = useRef<SfxType[]>([])
@@ -461,9 +462,20 @@ export default function App() {
 
   const prepareAudioFromGesture = useCallback((options: { primeMusic?: boolean } = {}) => {
     unlockAudio()
+    if (shouldAvoidHtmlSfxFallbackForDevice()) {
+      const context = getSfxContext()
+      if (context && context.state !== 'running' && context.state !== 'closed' && !sfxResumePendingRef.current) {
+        // Unlock on the actual input, never on a coin collision.
+        pulseSfxContextFromGesture(context)
+        sfxResumePendingRef.current = context.resume()
+          .then(() => { if (!document.hidden) pulseSfxContextFromGesture(context) })
+          .catch(() => undefined)
+          .finally(() => { sfxResumePendingRef.current = null })
+      }
+    }
     primeSfxFromGesture()
     if (options.primeMusic) primeMusicFromGesture()
-  }, [primeMusicFromGesture, primeSfxFromGesture, unlockAudio])
+  }, [getSfxContext, primeMusicFromGesture, primeSfxFromGesture, pulseSfxContextFromGesture, unlockAudio])
 
   useEffect(() => {
     const prepare = () => prepareAudioFromGesture()
