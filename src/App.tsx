@@ -476,9 +476,8 @@ export default function App() {
     if (!audio) return
     audio.volume = MUSIC_VOLUME
     audio.loop = true
-    audio.preload = 'auto'
+    audio.preload = 'none'
     ;(audio as HTMLAudioElement & { playsInline?: boolean }).playsInline = true
-    audio.load()
   }, [])
 
   useEffect(() => {
@@ -667,7 +666,7 @@ export default function App() {
 
   const startMusicFromMovement = useCallback(() => {
     const audio = musicRef.current
-    if (!audio || !musicEnabledRef.current || musicStartedRef.current) return
+    if (!audio || document.hidden || !musicEnabledRef.current || musicStartedRef.current) return
     musicPausedByBackgroundRef.current = false
     if (musicPrimeTimer.current) {
       window.clearTimeout(musicPrimeTimer.current)
@@ -693,6 +692,13 @@ export default function App() {
 
   useEffect(() => {
     const pauseMusicForBackground = () => {
+      pressedMovementKeysRef.current.clear()
+      joystickRef.current = ZERO_INPUT
+      movementInputActiveRef.current = false
+      keyboardStartRef.current = false
+      introInputHeldRef.current = false
+      postIntroInputLockedRef.current = false
+      for (const scene of gameRef.current?.scene.getScenes(true) ?? []) scene.input.keyboard?.resetKeys()
       const audio = musicRef.current
       if (!audio) return
       musicWasPlayingBeforeHidden.current = !audio.paused && musicEnabledRef.current
@@ -1135,7 +1141,7 @@ export default function App() {
 
   return (
     <main className="page-shell" style={shellStyle}>
-      <audio ref={musicRef} preload="auto" src={MUSIC_PATH} />
+      <audio ref={musicRef} preload="none" src={MUSIC_PATH} />
       <section className={`game-shell ${started ? 'is-playing' : 'is-intro'}`} aria-label="Revenge of the Eyecat game">
         {loading ? <div className="loading-screen" aria-hidden="true" /> : null}
 
